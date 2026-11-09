@@ -165,24 +165,7 @@ def init_db():
             VALUES (?, ?, ?, ?, ?, ?, ?)
         """, (pid, ptitle, pcat, pprice, pcost, pdesc, pinstr))
 
-    # Seed Default Stock Items
-    stock_seeds = [
-        ('chatgpt-plus', 'kotik_gpt_pro_01@gmail.com:KotikPass2026!'),
-        ('chatgpt-plus', 'kotik_gpt_pro_02@gmail.com:KotikPlusFast99!'),
-        ('claude-3-7-pro', 'claude_coder_99@outlook.com:ClaudeSonnet#2026'),
-        ('claude-3-7-pro', 'claude_team_code@outlook.com:SonnetDevSafe26'),
-        ('elevenlabs', 'sk_eleven_9941a87b22f1c8d00923e_live'),
-        ('elevenlabs', 'sk_eleven_b528f110c71a3994bb01a_live'),
-        ('capcut-pro', 'capcut_cloud_vip1@mail.ru:CapCut4kEdit'),
-        ('capcut-pro', 'capcut_cloud_vip2@mail.ru:FastCutRender2026'),
-    ]
-    for pid, content in stock_seeds:
-        cur.execute("SELECT id FROM stock_items WHERE product_id = ? AND content = ?", (pid, content))
-        if not cur.fetchone():
-            cur.execute("""
-                INSERT INTO stock_items (product_id, content, added_at)
-                VALUES (?, ?, ?)
-            """, (pid, content, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+    # Stock is initially clean (0 items). Items are added via Admin Dashboard or API.
 
     # Seed settings
     cur.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('x2_bonus', 'off')")
@@ -344,6 +327,114 @@ def get_all_user_ids():
     ids = [r[0] for r in cur.fetchall()]
     conn.close()
     return ids
+
+
+# --- Products & Categories Helpers ---
+def get_products_list():
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT p.*, COUNT(s.id) as stock_count
+        FROM products p
+        LEFT JOIN stock_items s ON p.id = s.product_id AND s.is_sold = 0
+        WHERE p.is_active = 1
+        GROUP BY p.id
+    """)
+    rows = [dict(r) for r in cur.fetchall()]
+    conn.close()
+    return rows
+
+
+def get_categories_list():
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM categories")
+    rows = [dict(r) for r in cur.fetchall()]
+    conn.close()
+    return rows
+
+
+def update_product_db(product_id: str, title: str, category_id: str, price: float, description: str = "", instruction: str = ""):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("""
+        UPDATE products
+        SET title = ?, category_id = ?, price = ?, description = ?, instruction = ?
+        WHERE id = ?
+    """, (title, category_id, price, description, instruction, product_id))
+    conn.commit()
+    conn.close()
+
+
+def create_api_order(user_id: int, product_id: str, contact: str = ""):
+    conn = get_connection()
+    cur = conn.cursor()
+    
+    # 1. Check product
+    cur.execute("SELECT * FROM products WHERE id = ?", (product_id,))
+    prod = cur.fetchone()
+    if not prod:
+        conn.close()
+        return None, "Товар не найден"
+    
+    price = prod["price"]
+    title = prod["title"]
+
+    # 2. Find available stock item
+    cur.execute("SELECT id, content FROM stock_items WHERE product_id = ? AND is_sold = 0 LIMIT 1", (product_id,))
+    stock_row = cur.fetchone()
+
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    order_id = f"KTK-{int(datetime.now().timestamp())}"
+
+    item_content = ""
+    if stock_row:
+        stock_id = stock_row["id"]
+        item_content = stock_row["content"]
+        cur.execute("""
+            UPDATE stock_items
+            SET is_sold = 1, sold_to = ?, sold_at = ?
+            WHERE id = ?
+        """, (user_id, now_str, stock_id))
+    else:
+        # Pre-order delivery (0 stock on warehouse)
+        item_content = f"Подключение по контакту: {contact} (Менеджер выдаст в течение 10 минут)"
+
+    # 3. Insert order
+    cur.execute("""
+        INSERT INTO orders (id, user_id, product_id, product_title, item_content, price, status, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, 'active', ?)
+    """, (order_id, user_id, product_id, title, item_content, price, now_str))
+
+    # 4. Update user orders_count & total_spent
+    cur.execute("""
+        UPDATE users
+        SET orders_count = orders_count + 1,
+            total_spent = total_spent + ?
+        WHERE telegram_id = ?
+    """, (price, user_id))
+
+    conn.commit()
+    conn.close()
+
+    return {
+        "order_id": order_id,
+        "product_id": product_id,
+        "product_title": title,
+        "price": price,
+        "login_data": item_content,
+        "status": "completed" if stock_row else "processing",
+        "created_at": now_str,
+    }, None
+
+
+def get_order_by_id(order_id: str):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM orders WHERE id = ?", (order_id,))
+    row = cur.fetchone()
+    conn.close()
+    return dict(row) if row else None
 
 
 # Initialize DB on module import

@@ -654,8 +654,89 @@ async def handle_deladmin(message: types.Message):
 
 
 # =====================================================================
-# AIOHTTP BACKGROUND SERVER FOR WEBHOOKS & NOTIFICATIONS
+# AIOHTTP BACKGROUND SERVER FOR WEBHOOKS & REST API
 # =====================================================================
+@web.middleware
+async def cors_middleware(request: web.Request, handler):
+    if request.method == "OPTIONS":
+        response = web.Response(status=204)
+    else:
+        response = await handler(request)
+    
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS, PUT, DELETE"
+    response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type, Accept"
+    return response
+
+
+async def handle_api_products(request: web.Request):
+    """GET /api/v1/products - Returns list of active products with warehouse stock."""
+    products = db.get_products_list()
+    return web.json_response({"ok": True, "count": len(products), "products": products})
+
+
+async def handle_api_user_balance(request: web.Request):
+    """GET /api/v1/user/balance - Returns current balance and status."""
+    auth = request.headers.get("Authorization", "")
+    token = auth.replace("Bearer ", "").strip()
+    
+    # Live user or owner fallback
+    user = db.get_user(db.OWNER_TELEGRAM_ID)
+    balance = user["balance"] if user else 0.0
+    
+    return web.json_response({
+        "ok": True,
+        "token_prefix": token[:8] + "..." if len(token) > 8 else token,
+        "user_id": db.OWNER_TELEGRAM_ID,
+        "balance": balance,
+        "currency": "USD",
+        "rank": "Silver",
+        "is_active": True
+    })
+
+
+async def handle_api_create_order(request: web.Request):
+    """POST /api/v1/order/create - Purchases an account via API."""
+    try:
+        data = await request.json()
+        product_id = data.get("product_id")
+        contact = data.get("contact", "@kotik_client")
+        user_id = data.get("user_id", db.OWNER_TELEGRAM_ID)
+
+        if not product_id:
+            return web.json_response({"ok": False, "error": "Поле product_id обязательно"}, status=400)
+
+        order_res, err = db.create_api_order(user_id=user_id, product_id=product_id, contact=contact)
+        if err:
+            return web.json_response({"ok": False, "error": err}, status=400)
+
+        # Notify admins
+        if bot_instance:
+            await notify_purchase(
+                bot=bot_instance,
+                user_id=user_id,
+                username=contact,
+                product_title=order_res["product_title"],
+                price=order_res["price"],
+                order_id=order_res["order_id"],
+                item_content=order_res["login_data"],
+            )
+
+        return web.json_response({"ok": True, "order": order_res})
+    except Exception as e:
+        logger.error(f"API create order error: {e}")
+        return web.json_response({"ok": False, "error": str(e)}, status=500)
+
+
+async def handle_api_get_order(request: web.Request):
+    """GET /api/v1/order/{id} - Returns order status and login data."""
+    order_id = request.match_info.get("id", "")
+    order = db.get_order_by_id(order_id)
+    if not order:
+        return web.json_response({"ok": False, "error": "Заказ не найден"}, status=404)
+    return web.json_response({"ok": True, "order": order})
+
+
 async def handle_notify_purchase_api(request: web.Request):
     """API endpoint called when a purchase is completed."""
     try:
@@ -711,17 +792,25 @@ async def handle_notify_deposit_api(request: web.Request):
 
 
 async def start_web_server():
-    """Starts the internal webhook and notification server."""
-    app = web.Application()
+    """Starts the internal webhook and REST API server."""
+    app = web.Application(middlewares=[cors_middleware])
+    
+    # Internal notification endpoints
     app.router.add_post("/api/notify/purchase", handle_notify_purchase_api)
     app.router.add_post("/api/notify/deposit", handle_notify_deposit_api)
+
+    # Public REST API v1
+    app.router.add_get("/api/v1/products", handle_api_products)
+    app.router.add_get("/api/v1/user/balance", handle_api_user_balance)
+    app.router.add_post("/api/v1/order/create", handle_api_create_order)
+    app.router.add_get("/api/v1/order/{id}", handle_api_get_order)
 
     runner = web.AppRunner(app)
     await runner.setup()
     port = int(os.environ.get("PORT", 8080))
     site = web.TCPSite(runner, "0.0.0.0", port)
     await site.start()
-    logger.info(f"Webhook & Notification API server started on port {port}")
+    logger.info(f"REST API & Notification server started on port {port}")
 
 
 # --- Main Entry Point ---

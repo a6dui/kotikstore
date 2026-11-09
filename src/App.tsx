@@ -16,6 +16,7 @@ import { PolicyModal } from './components/PolicyModal';
 import { BottomNav } from './components/BottomNav';
 import { AdminAuthModal } from './components/Admin/AdminAuthModal';
 import { AdminDashboard } from './components/Admin/AdminDashboard';
+import { ApiDocsModal } from './components/ApiDocsModal';
 import {
   INITIAL_CATEGORIES,
   INITIAL_PRODUCTS,
@@ -54,11 +55,38 @@ import type {
 import { initTelegramApp, getTelegramUser, triggerHaptic, isStaffUser } from './utils/telegram';
 import { Heart, ShoppingBag } from 'lucide-react';
 
+// Storage migration to clean all legacy mock data to fresh 0 baseline
+const STORAGE_VERSION_KEY = 'kotik_storage_version';
+const CURRENT_STORAGE_VERSION = 'kotik_v5_zero_clean';
+
+if (typeof window !== 'undefined') {
+  const currentVer = localStorage.getItem(STORAGE_VERSION_KEY);
+  if (currentVer !== CURRENT_STORAGE_VERSION) {
+    const keysToPurge = [
+      'kotik_orders',
+      'kotik_favorites',
+      'kotik_reviews',
+      'kotik_leaderboard',
+      'kotik_products',
+      'kotik_stock',
+      'kotik_coupons',
+      'kotik_admin_users',
+      'kotik_admin_orders',
+      'kotik_activities',
+      'kotik_metrics',
+      'kotik_categories',
+      'kotik_balance',
+    ];
+    keysToPurge.forEach((k) => localStorage.removeItem(k));
+    localStorage.setItem(STORAGE_VERSION_KEY, CURRENT_STORAGE_VERSION);
+  }
+}
+
 export function App() {
   const [activeView, setActiveView] = useState<ActiveView>('shop');
   const [user] = useState<TelegramUser>(() => getTelegramUser());
 
-  // Persistent User State
+  // Persistent User State (Starts 100% clean with 0)
   const [balance, setBalance] = useState<number>(() => {
     const saved = localStorage.getItem('kotik_balance');
     return saved !== null ? parseFloat(saved) : 0.0;
@@ -66,12 +94,12 @@ export function App() {
 
   const [orders, setOrders] = useState<OrderItem[]>(() => {
     const saved = localStorage.getItem('kotik_orders');
-    return saved !== null ? JSON.parse(saved) : INITIAL_ADMIN_ORDERS.slice(0, 1);
+    return saved !== null ? JSON.parse(saved) : [];
   });
 
   const [favorites, setFavorites] = useState<string[]>(() => {
     const saved = localStorage.getItem('kotik_favorites');
-    return saved !== null ? JSON.parse(saved) : ['chatgpt-plus'];
+    return saved !== null ? JSON.parse(saved) : [];
   });
 
   const [reviews, setReviews] = useState<Review[]>(() => {
@@ -147,6 +175,7 @@ export function App() {
   // Modals state
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [isTopUpOpen, setIsTopUpOpen] = useState<boolean>(false);
+  const [isApiDocsOpen, setIsApiDocsOpen] = useState<boolean>(false);
   const [checkoutConfig, setCheckoutConfig] = useState<{
     product: Product;
     option: ProductOption;
@@ -161,6 +190,32 @@ export function App() {
   // Admin Modals
   const [isAdminAuthOpen, setIsAdminAuthOpen] = useState<boolean>(false);
   const [isAdminDashboardOpen, setIsAdminDashboardOpen] = useState<boolean>(false);
+
+  // Live Inline Storefront Product & Category Handlers
+  const handleUpdateProduct = (updated: Product) => {
+    setProducts((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+    setSelectedProduct(updated);
+  };
+
+  const handleDeleteProduct = (productId: string) => {
+    setProducts((prev) => prev.filter((p) => p.id !== productId));
+    setSelectedProduct(null);
+  };
+
+  const handleAddCategory = (newCat: Category) => {
+    setCategories((prev) => [...prev, newCat]);
+  };
+
+  const handleUpdateCategory = (updatedCat: Category) => {
+    setCategories((prev) => prev.map((c) => (c.id === updatedCat.id ? updatedCat : c)));
+  };
+
+  const handleDeleteCategory = (categoryId: string) => {
+    setCategories((prev) => prev.filter((c) => c.id !== categoryId));
+    if (selectedCategory === categoryId) {
+      setSelectedCategory('all');
+    }
+  };
 
   // Initialize Telegram WebApp SDK on mount
   useEffect(() => {
@@ -397,6 +452,10 @@ export function App() {
               onSelectCategory={setSelectedCategory}
               searchQuery={searchQuery}
               onSearchChange={setSearchQuery}
+              isStaff={isStaff}
+              onAddCategory={handleAddCategory}
+              onUpdateCategory={handleUpdateCategory}
+              onDeleteCategory={handleDeleteCategory}
               counts={categories.reduce((acc, cat) => {
                 acc[cat.id] =
                   cat.id === 'all'
@@ -535,6 +594,7 @@ export function App() {
               onOpenAdminAuth={() => setIsAdminAuthOpen(true)}
               x2PromotionActive={metrics.x2PromotionActive}
               isStaff={isStaff}
+              onOpenApiDocs={() => setIsApiDocsOpen(true)}
             />
           </div>
         )}
@@ -545,6 +605,17 @@ export function App() {
         product={selectedProduct}
         onClose={() => setSelectedProduct(null)}
         onProceedToCheckout={handleProceedToCheckout}
+        isStaff={isStaff}
+        categories={categories}
+        onUpdateProduct={handleUpdateProduct}
+        onDeleteProduct={handleDeleteProduct}
+      />
+
+      {/* REST API Live Documentation & Code Samples Modal */}
+      <ApiDocsModal
+        isOpen={isApiDocsOpen}
+        onClose={() => setIsApiDocsOpen(false)}
+        apiKey="ktk_live_9f82d1a3c704e6b5"
       />
 
       {/* Checkout Confirmation Modal */}

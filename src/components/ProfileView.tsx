@@ -29,6 +29,7 @@ interface ProfileViewProps {
   onOpenAdminAuth: () => void;
   x2PromotionActive: boolean;
   isStaff?: boolean;
+  onOpenApiDocs?: () => void;
 }
 
 export const ProfileView: React.FC<ProfileViewProps> = ({
@@ -42,6 +43,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   onOpenAdminAuth,
   x2PromotionActive,
   isStaff = false,
+  onOpenApiDocs,
 }) => {
   const [copiedReferral, setCopiedReferral] = useState(false);
   const [copiedApiKey, setCopiedApiKey] = useState(false);
@@ -275,30 +277,84 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
         </button>
       </div>
 
-      {/* 👥 Реферальная программа */}
-      <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-xl backdrop-blur-md space-y-3">
-        <div className="flex items-center gap-2">
-          <Users className="w-4 h-4 text-fuchsia-400" />
-          <h3 className="text-sm font-extrabold text-white">Реферальная программа (10%)</h3>
+      {/* 👥 Реферальная программа & Призовой фонд месяца */}
+      <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-xl backdrop-blur-md space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Users className="w-4 h-4 text-fuchsia-400" />
+            <h3 className="text-sm font-extrabold text-white">Реферальная программа (10%)</h3>
+          </div>
+          <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-yellow-400/20 text-yellow-300 border border-yellow-400/30">
+            🏆 $10 + Премиум
+          </span>
         </div>
-        <p className="text-xs text-white/60">
-          Приглашайте друзей по вашей персональной ссылке и получайте 10% от каждого их пополнения пожизненно!
-        </p>
 
-        <div className="flex items-center gap-2">
-          <input
-            type="text"
-            readOnly
-            value={referralLink}
-            className="flex-1 rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-xs font-mono text-white/80 focus:outline-none"
-          />
-          <button
-            onClick={copyReferral}
-            className="px-3.5 py-2 rounded-xl bg-fuchsia-500/20 border border-fuchsia-500/30 text-fuchsia-300 hover:text-white text-xs font-bold transition-all flex items-center gap-1.5"
-          >
-            {copiedReferral ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
-            <span>{copiedReferral ? 'Скопировано' : 'Копировать'}</span>
-          </button>
+        {/* Призовой фонд месяца баннер */}
+        <div className="rounded-2xl border border-yellow-500/30 bg-gradient-to-r from-yellow-950/40 via-amber-950/30 to-black p-3.5 space-y-1">
+          <div className="flex items-center justify-between">
+            <div className="text-xs font-black text-yellow-300 flex items-center gap-1.5">
+              <Crown className="w-4 h-4 text-yellow-400" />
+              <span>Призовой фонд месяца: $10.00</span>
+            </div>
+            <span className="text-[9px] font-bold text-white/50 bg-white/10 px-2 py-0.5 rounded-full">
+              Ежемесячно
+            </span>
+          </div>
+          <p className="text-[11px] text-white/70">
+            Тот, кто пригласит больше всех людей за месяц, получит <b className="text-yellow-400">$10.00 на баланс</b> и эксклюзивный статус <b className="text-fuchsia-300">«Премиум Котик» 👑</b>!
+          </p>
+        </div>
+
+        {/* Личная статистика приглашений */}
+        <div className="grid grid-cols-2 gap-2 text-center">
+          <div className="p-2.5 rounded-xl bg-white/[0.03] border border-white/5">
+            <div className="text-[10px] text-white/40 uppercase font-semibold">Приглашено друзей</div>
+            <div className="text-sm font-black text-white mt-0.5">0 чел.</div>
+          </div>
+          <div className="p-2.5 rounded-xl bg-white/[0.03] border border-white/5">
+            <div className="text-[10px] text-white/40 uppercase font-semibold">Заработано (10%)</div>
+            <div className="text-sm font-black text-emerald-400 mt-0.5">$0.00</div>
+          </div>
+        </div>
+
+        {/* Ваша реферальная ссылка */}
+        <div className="space-y-1.5">
+          <label className="text-[11px] font-bold text-white/60">Ваша реферальная ссылка</label>
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              readOnly
+              value={referralLink}
+              className="flex-1 rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-xs font-mono text-white/80 focus:outline-none"
+            />
+            <button
+              onClick={copyReferral}
+              className="px-3.5 py-2 rounded-xl bg-fuchsia-500/20 border border-fuchsia-500/30 text-fuchsia-300 hover:text-white text-xs font-bold transition-all flex items-center gap-1.5"
+            >
+              {copiedReferral ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+              <span>{copiedReferral ? 'Скопировано' : 'Копировать'}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Топ по приглашениям месяца */}
+        <div className="pt-1 border-t border-white/5 space-y-2">
+          <div className="flex items-center justify-between text-xs font-bold text-white/70">
+            <span className="flex items-center gap-1.5">
+              <Users className="w-3.5 h-3.5 text-fuchsia-400" />
+              <span>Топ приглашений (этого месяца)</span>
+            </span>
+            <span className="text-[10px] text-white/40">Реальное время</span>
+          </div>
+
+          <div className="p-3.5 rounded-xl bg-white/[0.02] border border-white/5 text-center">
+            <p className="text-xs text-white/60">
+              В этом месяце ещё никто не пригласил рефералов.
+            </p>
+            <p className="text-[11px] text-yellow-400 font-bold mt-1">
+              🚀 Пригласите первого друга и станьте ТОП-1 месяца!
+            </p>
+          </div>
         </div>
       </div>
 
@@ -318,7 +374,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
           </button>
         </div>
         <p className="text-xs text-white/60">
-          Используйте API ключ для автоматической закупки нейросетей через вашего бота или скрипт.
+          Используйте персональный ключ для автоматических закупок подписок и аккаунтов через ваших ботов, сайты или скрипты.
         </p>
 
         <div className="flex items-center gap-2">
@@ -336,6 +392,18 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
             <span>{copiedApiKey ? 'Готово' : 'Копия'}</span>
           </button>
         </div>
+
+        {/* Кнопка открытия полной документации API */}
+        <button
+          onClick={() => {
+            triggerHaptic('light');
+            if (onOpenApiDocs) onOpenApiDocs();
+          }}
+          className="w-full py-2.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 hover:text-white font-bold text-xs transition-all flex items-center justify-center gap-2"
+        >
+          <Sparkles className="w-3.5 h-3.5" />
+          <span>📖 Открыть документацию API (cURL, Python, JS)</span>
+        </button>
       </div>
 
       {/* 📜 Информация и правила (User Agreement / Privacy / Refund) */}
