@@ -1,6 +1,7 @@
 import React from 'react';
 import { ShoppingBag, ClipboardList, MessageSquare, Trophy, Heart, User, Sliders } from 'lucide-react';
 import type { ActiveView } from '../types';
+import type { Language } from '../utils/i18n';
 import { triggerHaptic } from '../utils/telegram';
 
 interface BottomNavProps {
@@ -9,6 +10,7 @@ interface BottomNavProps {
   ordersCount: number;
   wishlistCount: number;
   isAdmin?: boolean;
+  lang?: Language;
 }
 
 export const BottomNav: React.FC<BottomNavProps> = ({
@@ -17,38 +19,40 @@ export const BottomNav: React.FC<BottomNavProps> = ({
   ordersCount,
   wishlistCount,
   isAdmin = false,
+  lang = 'ru',
 }) => {
+  const isEn = lang === 'en';
   const navItems: { id: ActiveView; label: string; icon: React.ReactNode; badge?: number }[] = [
     {
       id: 'shop',
-      label: 'Магазин',
+      label: isEn ? 'Shop' : 'Магазин',
       icon: <ShoppingBag className="w-4 h-4" />,
     },
     {
       id: 'orders',
-      label: 'Заказы',
+      label: isEn ? 'Orders' : 'Заказы',
       icon: <ClipboardList className="w-4 h-4" />,
       badge: ordersCount > 0 ? ordersCount : undefined,
     },
     {
       id: 'reviews',
-      label: 'Отзывы',
+      label: isEn ? 'Reviews' : 'Отзывы',
       icon: <MessageSquare className="w-4 h-4" />,
     },
     {
       id: 'leaderboard',
-      label: 'Топ',
+      label: isEn ? 'Top' : 'Топ',
       icon: <Trophy className="w-4 h-4" />,
     },
     {
       id: 'wishlist',
-      label: 'Избранное',
+      label: isEn ? 'Wishlist' : 'Избранное',
       icon: <Heart className="w-4 h-4" />,
       badge: wishlistCount > 0 ? wishlistCount : undefined,
     },
     {
       id: 'profile',
-      label: 'Кабинет',
+      label: isEn ? 'Profile' : 'Кабинет',
       icon: <User className="w-4 h-4" />,
     },
   ];
@@ -56,7 +60,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
   if (isAdmin) {
     navItems.push({
       id: 'admin',
-      label: 'Админка',
+      label: isEn ? 'Admin' : 'Админка',
       icon: <Sliders className="w-4 h-4" />,
     });
   }

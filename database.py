@@ -31,9 +31,16 @@ def init_db():
             daily_streak INTEGER DEFAULT 0,
             last_daily_claim TEXT,
             role TEXT DEFAULT 'user',
+            language TEXT DEFAULT 'ru',
             created_at TEXT
         );
     """)
+
+    # Try migrate column if not exists
+    try:
+        cur.execute("ALTER TABLE users ADD COLUMN language TEXT DEFAULT 'ru'")
+    except Exception:
+        pass
 
     # 2. Admins & Staff Table
     cur.execute("""
@@ -212,6 +219,25 @@ def get_user(telegram_id: int):
     row = cur.fetchone()
     conn.close()
     return dict(row) if row else None
+
+
+def set_user_language(telegram_id: int, lang: str):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("UPDATE users SET language = ? WHERE telegram_id = ?", (lang, telegram_id))
+    conn.commit()
+    conn.close()
+
+
+def get_user_language(telegram_id: int) -> str:
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT language FROM users WHERE telegram_id = ?", (telegram_id,))
+    row = cur.fetchone()
+    conn.close()
+    if row and row["language"]:
+        return row["language"]
+    return "ru"
 
 
 # --- Staff & Permissions Helpers ---

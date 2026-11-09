@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Search, X, Sparkles, Plus, Edit2, Trash2, Check } from 'lucide-react';
 import type { Category, ProductCategory } from '../types';
+import type { Language } from '../utils/i18n';
 import { haptic } from '../utils/telegram';
 
 interface CategoryFilterProps {
@@ -14,6 +15,7 @@ interface CategoryFilterProps {
   onAddCategory?: (category: Category) => void;
   onUpdateCategory?: (category: Category) => void;
   onDeleteCategory?: (categoryId: string) => void;
+  lang?: Language;
 }
 
 export const CategoryFilter: React.FC<CategoryFilterProps> = ({
@@ -27,6 +29,7 @@ export const CategoryFilter: React.FC<CategoryFilterProps> = ({
   onAddCategory,
   onUpdateCategory,
   onDeleteCategory,
+  lang = 'ru',
 }) => {
   const [isAdding, setIsAdding] = useState(false);
   const [newCatName, setNewCatName] = useState('');
@@ -85,7 +88,7 @@ export const CategoryFilter: React.FC<CategoryFilterProps> = ({
           type="text"
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
-          placeholder="Найти нейросеть (ChatGPT, Gemini, Claude...)"
+          placeholder={lang === 'en' ? 'Search AI tools (ChatGPT, Gemini, Claude...)' : 'Найти нейросеть (ChatGPT, Gemini, Claude...)'}
           className="w-full pl-10 pr-9 py-2.5 rounded-2xl bg-white/5 border border-white/10 text-white placeholder-white/35 text-xs focus:outline-none focus:border-pink-500/60 focus:ring-1 focus:ring-pink-500/50 backdrop-blur-md transition-all shadow-inner"
         />
         {searchQuery && (
@@ -147,7 +150,19 @@ export const CategoryFilter: React.FC<CategoryFilterProps> = ({
                 <span className="text-xs">
                   {cat.emoji || <Sparkles className="w-3.5 h-3.5" />}
                 </span>
-                <span>{cat.name}</span>
+                <span>
+                  {lang === 'en'
+                    ? cat.id === 'all'
+                      ? 'All'
+                      : cat.id === 'text_code'
+                      ? 'Text & Code'
+                      : cat.id === 'voice_video'
+                      ? 'Voice & Video'
+                      : cat.id === 'vpn_security'
+                      ? 'VPN & Security'
+                      : cat.name
+                    : cat.name}
+                </span>
                 <span
                   className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono ${
                     isActive ? 'bg-white/20 text-white' : 'bg-white/10 text-white/40'

@@ -133,102 +133,47 @@ async def notify_purchase(
     await notify_all_admins(bot, msg)
 
 
-# --- Keyboards ---
-def get_main_reply_keyboard(is_staff: bool = False) -> ReplyKeyboardMarkup:
-    """Bottom persistent keyboard with one single button to return to main menu."""
-    return ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text="🐱 Вернуться в главное меню")]
-        ],
-        resize_keyboard=True,
-    )
+# Channel Subscription Configuration
+CHANNEL_USERNAME = "@KotikNews_shop"
+CHANNEL_URL = "https://t.me/KotikNews_shop"
 
 
-def get_main_inline_keyboard(is_staff: bool = False) -> InlineKeyboardMarkup:
-    """Inline keyboard under the hero welcome message."""
-    buttons = [
-        [
-            InlineKeyboardButton(
-                text="⚡ Открыть Kotik Store",
-                web_app=WebAppInfo(url=WEBAPP_URL),
-            )
-        ],
-        [
-            InlineKeyboardButton(text="📜 Соглашение", callback_data="btn_rules"),
-            InlineKeyboardButton(text="🛡️ Гарантия и возврат", callback_data="btn_warranty"),
-        ],
-        [
-            InlineKeyboardButton(text="🔒 Приватность", callback_data="btn_privacy"),
-            InlineKeyboardButton(text="💬 Поддержка", callback_data="btn_support"),
-        ],
-        [
-            InlineKeyboardButton(text="📢 Наш Канал", url="https://t.me/KotikNews_shop"),
-        ],
-    ]
-    if is_staff:
-        buttons.append([
-            InlineKeyboardButton(text="⚙️ Админ-панель", callback_data="btn_admin_menu")
-        ])
-    return InlineKeyboardMarkup(inline_keyboard=buttons)
-
-
-def get_admin_inline_keyboard() -> InlineKeyboardMarkup:
-    """Keyboard inside /admin control panel."""
-    admin_webapp_url = f"{WEBAPP_URL}?admin=1"
-
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [
-                InlineKeyboardButton(
-                    text="👑 Открыть Web-Админку",
-                    web_app=WebAppInfo(url=admin_webapp_url),
-                )
-            ],
-            [
-                InlineKeyboardButton(text="📊 Склад и остатки", callback_data="admin_stock"),
-                InlineKeyboardButton(text="👥 Список персонала", callback_data="admin_staff"),
-            ],
-            [
-                InlineKeyboardButton(text="⚡ Переключить X2 Бонус", callback_data="admin_toggle_x2"),
-                InlineKeyboardButton(text="🧪 Тест уведомлений", callback_data="admin_test_notify"),
-            ],
-            [
-                InlineKeyboardButton(
-                    text="🔙 Вернуться до котика в главное меню",
-                    callback_data="btn_back_to_kotik",
-                )
-            ],
-        ]
-    )
-
-
-# --- Handlers ---
-@dp.message(CommandStart())
-async def handle_start(message: types.Message, bot: Bot):
-    user_id = message.from_user.id
-    username = message.from_user.username or ""
-    first_name = message.from_user.first_name or "Котик-Друг"
-
-    # Ник пользователя (предпочитаем @username, если есть, иначе имя)
-    user_nick = f"@{username}" if username else first_name
-
-    # Save to SQLite DB
-    db.get_or_create_user(user_id, username, first_name)
-    is_admin = db.is_staff(user_id)
-
-    # Set Menu Button
+async def is_subscribed_to_channel(bot: Bot, user_id: int) -> bool:
+    """Checks if user is subscribed to @KotikNews_shop (Owners/staff always pass)."""
+    if user_id == db.OWNER_TELEGRAM_ID or db.is_staff(user_id):
+        return True
     try:
-        await bot.set_chat_menu_button(
-            chat_id=message.chat.id,
-            menu_button=MenuButtonWebApp(
-                text="🐱 Kotik Store",
-                web_app=WebAppInfo(url=WEBAPP_URL),
-            ),
-        )
+        member = await bot.get_chat_member(chat_id=CHANNEL_USERNAME, user_id=user_id)
+        return member.status in ("member", "administrator", "creator", "restricted")
     except Exception as e:
-        logger.warning(f"Could not set menu button: {e}")
+        logger.warning(f"Subscription check warning for {user_id} (bot might not be admin in channel): {e}")
+        # If bot is not an admin in the channel yet, allow access to prevent locking users out
+        return True
 
-    welcome_text = (
+
+# --- Texts & Keyboards (Multilingual RU / EN) ---
+def get_welcome_text(user_nick: str, lang: str = "ru") -> str:
+    if lang == "en":
+        return (
+            f"- Hello, {user_nick}! ⭐\n\n"
+            "- Welcome to <b>Kotik Store</b>!\n\n"
+            "- The ultimate guide to subscriptions for any digital service!\n\n"
+            "✨ <b>Available AI subscriptions with instant delivery:</b>\n"
+            "• 🤖 <b>ChatGPT Plus</b> (o1, GPT-4o, Canvas, DALL-E)\n"
+            "• ✨ <b>Gemini Advanced</b> (2M context, 2TB Google One)\n"
+            "• 💻 <b>Claude 3.7 Sonnet Pro</b> (#1 model for code)\n"
+            "• 🚀 <b>Grok AI</b> (X Premium+, uncensored, FLUX)\n"
+            "• 🎙 <b>ElevenLabs Pro</b> (Realistic voice cloning)\n"
+            "• 🎬 <b>CapCut Pro</b> (PRO effects & 4K render)\n\n"
+            "💳 <b>Payment Methods:</b>\n"
+            "• 🤖 <b>CryptoBot</b> (USDT, TON, BTC — 0% fee)\n"
+            "• ⚡ <b>Bot 2328</b> (Telegram Pay / SBP)\n"
+            "• 💳 <b>Platega</b> (Cards, SBP, T-Pay)\n"
+            "• 🦊 <b>Enot.io</b> (International cards, QIWI)\n\n"
+            "⚡ <i>Full duration warranty • Instant 24/7 delivery</i>\n\n"
+            "Click <b>«Open Kotik Store»</b> below to enter the shop 👇"
+        )
+    return (
         f"- Привет, {user_nick}! ⭐\n\n"
         f"- Добро пожаловать в <b>Kotik Store</b>!\n\n"
         f"- Лучший проводник в мир подписок на любые сервисы!\n\n"
@@ -248,8 +193,184 @@ async def handle_start(message: types.Message, bot: Bot):
         "Нажмите <b>«Открыть Kotik Store»</b> ниже для входа в витрину 👇"
     )
 
-    reply_kb = get_main_reply_keyboard(is_admin)
-    inline_kb = get_main_inline_keyboard(is_admin)
+
+def get_sub_required_text(lang: str = "ru") -> str:
+    if lang == "en":
+        return (
+            "📢 <b>Mandatory Subscription to Kotik News</b>\n\n"
+            "To access <b>Kotik Store</b>, please subscribe to our official channel <b>@KotikNews_shop</b>!\n\n"
+            "There you will find:\n"
+            "• 🎁 Exclusive balance promo codes & discounts\n"
+            "• ⚡ Fresh drops of accounts & API keys\n"
+            "• 🏆 Monthly $10.00 & «Premium Kotik» contest results\n\n"
+            "After subscribing, click <b>«✅ I Subscribed (Check)»</b> below!"
+        )
+    return (
+        "📢 <b>Обязательная подписка на канал Kotik News</b>\n\n"
+        "Для использования магазина <b>Kotik Store</b> необходимо подписаться на наш официальный новостной канал <b>@KotikNews_shop</b>!\n\n"
+        "Там мы публикуем:\n"
+        "• 🎁 Эксклюзивные промокоды на скидки и баланс\n"
+        "• ⚡ Новые дропы нейросетей и ключей\n"
+        "• 🏆 Итоги ежемесячного конкурса на $10.00 и «Премиум Котик»\n\n"
+        "После подписки нажмите <b>«✅ Я подписался (Проверить)»</b> ниже!"
+    )
+
+
+def get_main_reply_keyboard(lang: str = "ru") -> ReplyKeyboardMarkup:
+    """Bottom persistent keyboard with one single button to return to main menu."""
+    btn_text = "🐱 Back to Main Menu" if lang == "en" else "🐱 Вернуться в главное меню"
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text=btn_text)]
+        ],
+        resize_keyboard=True,
+    )
+
+
+def get_main_inline_keyboard(lang: str = "ru", is_staff: bool = False) -> InlineKeyboardMarkup:
+    """Inline keyboard under the hero welcome message."""
+    is_en = lang == "en"
+    webapp_url_with_lang = f"{WEBAPP_URL}?lang={lang}"
+
+    buttons = [
+        [
+            InlineKeyboardButton(
+                text="⚡ Open Kotik Store" if is_en else "⚡ Открыть Kotik Store",
+                web_app=WebAppInfo(url=webapp_url_with_lang),
+            )
+        ],
+        [
+            InlineKeyboardButton(text="📜 Agreement" if is_en else "📜 Соглашение", callback_data="btn_rules"),
+            InlineKeyboardButton(text="🛡️ Warranty" if is_en else "🛡️ Гарантия и возврат", callback_data="btn_warranty"),
+        ],
+        [
+            InlineKeyboardButton(text="🔒 Privacy" if is_en else "🔒 Приватность", callback_data="btn_privacy"),
+            InlineKeyboardButton(text="💬 Support" if is_en else "💬 Поддержка", callback_data="btn_support"),
+        ],
+        [
+            InlineKeyboardButton(text="📢 Our Channel" if is_en else "📢 Наш Канал", url=CHANNEL_URL),
+            InlineKeyboardButton(
+                text="🌐 Language: 🇬🇧 EN" if is_en else "🌐 Язык: 🇷🇺 RU",
+                callback_data="btn_toggle_lang",
+            ),
+        ],
+    ]
+    if is_staff:
+        buttons.append([
+            InlineKeyboardButton(
+                text="⚙️ Admin Panel" if is_en else "⚙️ Админ-панель",
+                callback_data="btn_admin_menu",
+            )
+        ])
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+
+def get_sub_inline_keyboard(lang: str = "ru") -> InlineKeyboardMarkup:
+    """Keyboard for mandatory channel subscription."""
+    is_en = lang == "en"
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="📢 Subscribe to Channel" if is_en else "📢 Подписаться на канал",
+                    url=CHANNEL_URL,
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="✅ I Subscribed (Check)" if is_en else "✅ Я подписался (Проверить)",
+                    callback_data="btn_check_sub",
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="🌐 Switch to English" if not is_en else "🌐 Переключить на Русский",
+                    callback_data="btn_toggle_lang_sub",
+                )
+            ],
+        ]
+    )
+
+
+def get_admin_inline_keyboard(lang: str = "ru") -> InlineKeyboardMarkup:
+    """Keyboard inside /admin control panel."""
+    admin_webapp_url = f"{WEBAPP_URL}?admin=1&lang={lang}"
+
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="👑 Открыть Web-Админку",
+                    web_app=WebAppInfo(url=admin_webapp_url),
+                )
+            ],
+            [
+                InlineKeyboardButton(text="📊 Склад и остатки", callback_data="admin_stock"),
+                InlineKeyboardButton(text="👥 Список персонала", callback_data="admin_staff"),
+            ],
+            [
+                InlineKeyboardButton(text="⚡ Переключить X2 Бонус", callback_data="admin_toggle_x2"),
+                InlineKeyboardButton(text="🧪 Тест уведомлений", callback_data="admin_test_notify"),
+            ],
+            [
+                InlineKeyboardButton(
+                    text="🔙 Вернуться в главное меню",
+                    callback_data="btn_back_to_kotik",
+                )
+            ],
+        ]
+    )
+
+
+# --- Handlers ---
+@dp.message(CommandStart())
+async def handle_start(message: types.Message, bot: Bot):
+    user_id = message.from_user.id
+    username = message.from_user.username or ""
+    first_name = message.from_user.first_name or "Котик-Друг"
+
+    # Save to SQLite DB
+    db.get_or_create_user(user_id, username, first_name)
+    is_admin = db.is_staff(user_id)
+    lang = db.get_user_language(user_id)
+
+    # 1. Check Mandatory Channel Subscription
+    subscribed = await is_subscribed_to_channel(bot, user_id)
+    if not subscribed:
+        sub_text = get_sub_required_text(lang)
+        sub_kb = get_sub_inline_keyboard(lang)
+        if os.path.exists(CHANNEL_AVATAR_PATH):
+            try:
+                photo = FSInputFile(CHANNEL_AVATAR_PATH)
+                await message.answer_photo(
+                    photo=photo,
+                    caption=sub_text,
+                    parse_mode=ParseMode.HTML,
+                    reply_markup=sub_kb,
+                )
+                return
+            except Exception:
+                pass
+        await message.answer(sub_text, parse_mode=ParseMode.HTML, reply_markup=sub_kb)
+        return
+
+    # 2. User is subscribed -> Show Main Menu
+    user_nick = f"@{username}" if username else first_name
+    welcome_text = get_welcome_text(user_nick, lang)
+    reply_kb = get_main_reply_keyboard(lang)
+    inline_kb = get_main_inline_keyboard(lang, is_admin)
+
+    # Set Menu Button
+    try:
+        await bot.set_chat_menu_button(
+            chat_id=message.chat.id,
+            menu_button=MenuButtonWebApp(
+                text="🐱 Kotik Store",
+                web_app=WebAppInfo(url=f"{WEBAPP_URL}?lang={lang}"),
+            ),
+        )
+    except Exception as e:
+        logger.warning(f"Could not set menu button: {e}")
 
     # Send with mascot photo if available, otherwise text
     if os.path.exists(MASCOT_PATH):
@@ -261,7 +382,7 @@ async def handle_start(message: types.Message, bot: Bot):
                 parse_mode=ParseMode.HTML,
                 reply_markup=inline_kb,
             )
-            await message.answer("Меню управления закреплено внизу 🐾", reply_markup=reply_kb)
+            await message.answer("🐾", reply_markup=reply_kb)
             return
         except Exception as e:
             logger.warning(f"Failed to send photo: {e}")
@@ -271,7 +392,103 @@ async def handle_start(message: types.Message, bot: Bot):
         parse_mode=ParseMode.HTML,
         reply_markup=inline_kb,
     )
-    await message.answer("Меню управления закреплено внизу 🐾", reply_markup=reply_kb)
+    await message.answer("🐾", reply_markup=reply_kb)
+
+
+# --- Callback: Check Subscription ---
+@dp.callback_query(F.data == "btn_check_sub")
+async def handle_check_subscription(callback: types.CallbackQuery, bot: Bot):
+    user_id = callback.from_user.id
+    username = callback.from_user.username or ""
+    first_name = callback.from_user.first_name or "Котик-Друг"
+    lang = db.get_user_language(user_id)
+    is_admin = db.is_staff(user_id)
+
+    subscribed = await is_subscribed_to_channel(bot, user_id)
+    if not subscribed:
+        alert_msg = (
+            "You haven't subscribed to @KotikNews_shop yet! Please subscribe and try again."
+            if lang == "en"
+            else "Вы ещё не подписались на канал @KotikNews_shop! Пожалуйста, подпишитесь на канал и нажмите кнопку снова."
+        )
+        await callback.answer(alert_msg, show_alert=True)
+        return
+
+    await callback.answer(
+        "Подписка подтверждена! Добро пожаловать! 🎉" if lang != "en" else "Subscription verified! Welcome! 🎉"
+    )
+
+    try:
+        await callback.message.delete()
+    except Exception:
+        pass
+
+    user_nick = f"@{username}" if username else first_name
+    welcome_text = get_welcome_text(user_nick, lang)
+    reply_kb = get_main_reply_keyboard(lang)
+    inline_kb = get_main_inline_keyboard(lang, is_admin)
+
+    if os.path.exists(MASCOT_PATH):
+        try:
+            photo = FSInputFile(MASCOT_PATH)
+            await callback.message.answer_photo(
+                photo=photo,
+                caption=welcome_text,
+                parse_mode=ParseMode.HTML,
+                reply_markup=inline_kb,
+            )
+            await callback.message.answer("🐾", reply_markup=reply_kb)
+            return
+        except Exception:
+            pass
+
+    await callback.message.answer(welcome_text, parse_mode=ParseMode.HTML, reply_markup=inline_kb)
+    await callback.message.answer("🐾", reply_markup=reply_kb)
+
+
+# --- Callback: Toggle Language (RU <-> EN) ---
+@dp.callback_query(F.data.in_(["btn_toggle_lang", "btn_toggle_lang_sub"]))
+async def handle_toggle_language(callback: types.CallbackQuery, bot: Bot):
+    user_id = callback.from_user.id
+    current_lang = db.get_user_language(user_id)
+    new_lang = "en" if current_lang == "ru" else "ru"
+    db.set_user_language(user_id, new_lang)
+    is_admin = db.is_staff(user_id)
+
+    toast = "Язык переключен на Русский 🇷🇺" if new_lang == "ru" else "Language switched to English 🇬🇧"
+    await callback.answer(toast)
+
+    # 1. If toggled on the Subscription screen
+    if callback.data == "btn_toggle_lang_sub":
+        sub_text = get_sub_required_text(new_lang)
+        sub_kb = get_sub_inline_keyboard(new_lang)
+        try:
+            await callback.message.edit_caption(caption=sub_text, parse_mode=ParseMode.HTML, reply_markup=sub_kb)
+        except Exception:
+            try:
+                await callback.message.edit_text(text=sub_text, parse_mode=ParseMode.HTML, reply_markup=sub_kb)
+            except Exception:
+                pass
+        return
+
+    # 2. Toggled on Main Menu
+    username = callback.from_user.username or ""
+    first_name = callback.from_user.first_name or "Котик-Друг"
+    user_nick = f"@{username}" if username else first_name
+    welcome_text = get_welcome_text(user_nick, new_lang)
+    inline_kb = get_main_inline_keyboard(new_lang, is_admin)
+
+    try:
+        await callback.message.edit_caption(caption=welcome_text, parse_mode=ParseMode.HTML, reply_markup=inline_kb)
+    except Exception:
+        try:
+            await callback.message.edit_text(text=welcome_text, parse_mode=ParseMode.HTML, reply_markup=inline_kb)
+        except Exception:
+            pass
+
+    # Update persistent reply keyboard button language
+    reply_kb = get_main_reply_keyboard(new_lang)
+    await callback.message.answer("🐾", reply_markup=reply_kb)
 
 
 # --- /admin Command ---
@@ -319,7 +536,9 @@ async def handle_admin(message: types.Message):
 # --- Navigation: Return to Kotik Main Menu ---
 @dp.callback_query(F.data == "btn_back_to_kotik")
 @dp.message(F.text == "🐱 Вернуться в главное меню")
+@dp.message(F.text == "🐱 Back to Main Menu")
 @dp.message(F.text.lower().contains("главное меню"))
+@dp.message(F.text.lower().contains("main menu"))
 @dp.message(F.text.lower().contains("вернуться"))
 async def handle_back_to_kotik(event: types.Message | types.CallbackQuery, bot: Bot):
     user = event.from_user
@@ -327,31 +546,25 @@ async def handle_back_to_kotik(event: types.Message | types.CallbackQuery, bot: 
     first_name = user.first_name or "Котик-Друг"
     user_nick = f"@{username}" if username else first_name
     is_admin = db.is_staff(user.id)
+    lang = db.get_user_language(user.id)
 
-    welcome_text = (
-        f"- Привет, {user_nick}! ⭐\n\n"
-        f"- Добро пожаловать в <b>Kotik Store</b>!\n\n"
-        f"- Лучший проводник в мир подписок на любые сервисы!\n\n"
-        "✨ <b>В наличии нейросети с моментальной автовыдачей:</b>\n"
-        "• 🤖 <b>ChatGPT Plus</b> (o1, GPT-4o, Canvas, DALL-E)\n"
-        "• ✨ <b>Gemini Advanced</b> (2M контекст, 2ТБ Google One)\n"
-        "• 💻 <b>Claude 3.7 Sonnet Pro</b> (Топ для кода)\n"
-        "• 🚀 <b>Grok AI</b> (X Premium+, без цензуры, FLUX)\n"
-        "• 🎙 <b>ElevenLabs Pro</b> (Клонирование голоса)\n"
-        "• 🎬 <b>CapCut Pro</b> (PRO эффекты и 4K рендер)\n\n"
-        "💳 <b>Доступные способы оплаты:</b>\n"
-        "• 🤖 <b>CryptoBot</b> (USDT, TON, BTC — 0% комиссия)\n"
-        "• ⚡ <b>Бот 2328</b> (Telegram Pay / SBP)\n"
-        "• 💳 <b>Platega</b> (СБП, Карты РФ, T-Pay, Сбер)\n"
-        "• 🦊 <b>Enot.io</b> (Карты СНГ, ЮMoney, QIWI)\n\n"
-        "⚡ <i>Гарантия на весь оплаченный период • Автовыдача 24/7</i>\n\n"
-        "Нажмите <b>«Открыть Kotik Store»</b> ниже для входа в витрину 👇"
-    )
+    # Check subscription first
+    subscribed = await is_subscribed_to_channel(bot, user.id)
+    if not subscribed:
+        sub_text = get_sub_required_text(lang)
+        sub_kb = get_sub_inline_keyboard(lang)
+        if isinstance(event, types.CallbackQuery):
+            await event.answer()
+            await event.message.answer(sub_text, parse_mode=ParseMode.HTML, reply_markup=sub_kb)
+        else:
+            await event.answer(sub_text, parse_mode=ParseMode.HTML, reply_markup=sub_kb)
+        return
 
-    inline_kb = get_main_inline_keyboard(is_admin)
+    welcome_text = get_welcome_text(user_nick, lang)
+    inline_kb = get_main_inline_keyboard(lang, is_admin)
 
     if isinstance(event, types.CallbackQuery):
-        await event.answer("Возвращаемся в главное меню... 🐾")
+        await event.answer("Возвращаемся в главное меню... 🐾" if lang != "en" else "Returning to Main Menu... 🐾")
         if os.path.exists(MASCOT_PATH):
             try:
                 photo = FSInputFile(MASCOT_PATH)

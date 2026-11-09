@@ -1,6 +1,7 @@
 import React from 'react';
 import { Plus, Wallet, Sparkles, SlidersHorizontal, Flame } from 'lucide-react';
 import type { TelegramUser } from '../types';
+import type { Language } from '../utils/i18n';
 import { haptic } from '../utils/telegram';
 
 interface HeaderProps {
@@ -10,6 +11,8 @@ interface HeaderProps {
   onOpenAdmin: () => void;
   x2PromotionActive?: boolean;
   isStaff?: boolean;
+  lang?: Language;
+  onToggleLanguage?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -19,6 +22,8 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenAdmin,
   x2PromotionActive = false,
   isStaff = false,
+  lang = 'ru',
+  onToggleLanguage,
 }) => {
   const handleTopUpClick = () => {
     haptic.medium();
@@ -77,6 +82,19 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Right Action Buttons */}
         <div className="flex items-center gap-2">
+          {/* Language Switcher Pill */}
+          <button
+            onClick={() => {
+              haptic.light();
+              if (onToggleLanguage) onToggleLanguage();
+            }}
+            type="button"
+            title="Переключить язык / Switch Language"
+            className="px-2.5 py-1.5 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-[10px] font-black text-white/90 hover:text-white transition-all flex items-center gap-1 active:scale-95 shadow-sm"
+          >
+            <span>{lang === 'en' ? '🇬🇧 EN' : '🇷🇺 RU'}</span>
+          </button>
+
           {/* Admin Access Button (ONLY for verified staff & owners) */}
           {isStaff && (
             <button

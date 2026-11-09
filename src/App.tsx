@@ -53,6 +53,7 @@ import type {
   StaffMember,
 } from './types';
 import { initTelegramApp, getTelegramUser, triggerHaptic, isStaffUser } from './utils/telegram';
+import { getInitialLanguage, type Language } from './utils/i18n';
 import { Heart, ShoppingBag } from 'lucide-react';
 
 // Storage migration to clean all legacy mock data to fresh 0 baseline
@@ -85,6 +86,15 @@ if (typeof window !== 'undefined') {
 export function App() {
   const [activeView, setActiveView] = useState<ActiveView>('shop');
   const [user] = useState<TelegramUser>(() => getTelegramUser());
+  const [lang, setLang] = useState<Language>(() => getInitialLanguage());
+
+  const handleToggleLanguage = () => {
+    setLang((prev) => {
+      const next = prev === 'ru' ? 'en' : 'ru';
+      localStorage.setItem('kotik_lang', next);
+      return next;
+    });
+  };
 
   // Persistent User State (Starts 100% clean with 0)
   const [balance, setBalance] = useState<number>(() => {
@@ -435,6 +445,8 @@ export function App() {
         onOpenAdmin={() => setIsAdminAuthOpen(true)}
         x2PromotionActive={metrics.x2PromotionActive}
         isStaff={isStaff}
+        lang={lang}
+        onToggleLanguage={handleToggleLanguage}
       />
 
       {/* Main Content Area */}
@@ -443,7 +455,7 @@ export function App() {
         {activeView === 'shop' && (
           <div className="space-y-4 animate-fade-in">
             {/* Mascot Banner */}
-            <HeroBanner />
+            <HeroBanner lang={lang} />
 
             {/* Search & Category Filter */}
             <CategoryFilter
@@ -456,6 +468,7 @@ export function App() {
               onAddCategory={handleAddCategory}
               onUpdateCategory={handleUpdateCategory}
               onDeleteCategory={handleDeleteCategory}
+              lang={lang}
               counts={categories.reduce((acc, cat) => {
                 acc[cat.id] =
                   cat.id === 'all'
@@ -477,12 +490,15 @@ export function App() {
                     isFavorite={favorites.includes(product.id)}
                     onSelect={() => setSelectedProduct(product)}
                     onToggleFavorite={toggleFavorite}
+                    lang={lang}
                   />
                 ))}
               </div>
             ) : (
               <div className="p-8 text-center rounded-3xl bg-white/[0.03] border border-white/10 my-6">
-                <p className="text-sm text-white/50 mb-2">Товары не найдены</p>
+                <p className="text-sm text-white/50 mb-2">
+                  {lang === 'en' ? 'No products found' : 'Товары не найдены'}
+                </p>
                 <button
                   onClick={() => {
                     setSelectedCategory('all');
@@ -490,7 +506,7 @@ export function App() {
                   }}
                   className="px-4 py-2 rounded-xl bg-fuchsia-500 text-white text-xs font-bold"
                 >
-                  Сбросить фильтры
+                  {lang === 'en' ? 'Reset filters' : 'Сбросить фильтры'}
                 </button>
               </div>
             )}
@@ -609,6 +625,7 @@ export function App() {
         categories={categories}
         onUpdateProduct={handleUpdateProduct}
         onDeleteProduct={handleDeleteProduct}
+        lang={lang}
       />
 
       {/* REST API Live Documentation & Code Samples Modal */}
@@ -704,6 +721,7 @@ export function App() {
         ordersCount={orders.length}
         wishlistCount={favorites.length}
         isAdmin={isStaff}
+        lang={lang}
       />
     </div>
   );

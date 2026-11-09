@@ -1,6 +1,7 @@
 import React from 'react';
 import { ArrowRight, Heart, Zap } from 'lucide-react';
 import type { Product } from '../types';
+import type { Language } from '../utils/i18n';
 import { BrandIconRenderer } from './BrandIcons';
 import { haptic } from '../utils/telegram';
 
@@ -9,6 +10,7 @@ interface ProductCardProps {
   onSelect: (product: Product) => void;
   isFavorite?: boolean;
   onToggleFavorite?: (productId: string) => void;
+  lang?: Language;
 }
 
 export const ProductCard: React.FC<ProductCardProps> = ({
@@ -16,6 +18,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   onSelect,
   isFavorite = false,
   onToggleFavorite,
+  lang = 'ru',
 }) => {
   const handleClick = () => {
     haptic.medium();
@@ -116,7 +119,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         {/* Stock indicator badge */}
         <div className="mt-1.5 flex items-center gap-1 text-[10px] text-white/40">
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-          <span>Склад: {product.stockCount} шт</span>
+          <span>{lang === 'en' ? `Stock: ${product.stockCount} pcs` : `Склад: ${product.stockCount} шт`}</span>
         </div>
       </div>
 
@@ -124,16 +127,16 @@ export const ProductCard: React.FC<ProductCardProps> = ({
       <div className="mt-3 pt-2 border-t border-white/5 flex items-center justify-between">
         <div className="flex flex-col">
           <span className="text-[9px] uppercase tracking-wider text-white/40 font-semibold">
-            Цена
+            {lang === 'en' ? 'Price' : 'Цена'}
           </span>
           <div className="flex items-baseline gap-0.5">
             <span
               className="text-xs font-bold font-mono"
               style={{ color: product.brandColor }}
             >
-              от ${product.startingPrice}
+              {lang === 'en' ? 'from' : 'от'} ${product.startingPrice}
             </span>
-            <span className="text-[9px] text-white/40">/мес</span>
+            <span className="text-[9px] text-white/40">{lang === 'en' ? '/mo' : '/мес'}</span>
           </div>
         </div>
 

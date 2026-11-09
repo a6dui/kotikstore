@@ -13,6 +13,7 @@ import {
   Save,
 } from 'lucide-react';
 import type { Product, ProductOption, DurationOption, Category } from '../types';
+import type { Language } from '../utils/i18n';
 import { BrandIconRenderer } from './BrandIcons';
 import { haptic } from '../utils/telegram';
 
@@ -30,6 +31,7 @@ interface ProductModalProps {
   categories?: Category[];
   onUpdateProduct?: (updated: Product) => void;
   onDeleteProduct?: (productId: string) => void;
+  lang?: Language;
 }
 
 export const ProductModal: React.FC<ProductModalProps> = ({
@@ -40,6 +42,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
   categories = [],
   onUpdateProduct,
   onDeleteProduct,
+  lang = 'ru',
 }) => {
   const [customOptionId, setCustomOptionId] = useState<string | null>(null);
   const [customMonths, setCustomMonths] = useState<number | null>(null);
@@ -427,7 +430,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
             {/* Key Features Checklist */}
             <div className="mb-4 p-3 rounded-2xl bg-white/[0.03] border border-white/5 space-y-1.5">
               <span className="text-[10px] uppercase font-bold text-white/40 tracking-wider">
-                Что входит в подписку:
+                {lang === 'en' ? 'Included in subscription:' : 'Что входит в подписку:'}
               </span>
               <div className="grid grid-cols-1 gap-1.5 pt-1">
                 {product.features.map((feat, i) => (
@@ -444,7 +447,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
             {/* Selector 1: Account Type */}
             <div className="mb-4">
               <label className="block text-xs font-bold text-white/70 mb-2">
-                1. Выберите тип подключения:
+                {lang === 'en' ? '1. Select Account Type:' : '1. Выберите тип подключения:'}
               </label>
               <div className="grid grid-cols-1 gap-2">
                 {product.options.map((opt) => {
@@ -499,11 +502,11 @@ export const ProductModal: React.FC<ProductModalProps> = ({
             <div className="mb-4">
               <div className="flex items-center justify-between mb-2">
                 <label className="text-xs font-bold text-white/70">
-                  2. Длительность подписки:
+                  {lang === 'en' ? '2. Duration:' : '2. Длительность подписки:'}
                 </label>
                 {selectedDuration.discountPercent > 0 && (
                   <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/20 px-2 py-0.5 rounded-full border border-emerald-500/30">
-                    Скидка {selectedDuration.discountPercent}%
+                    {lang === 'en' ? `Discount ${selectedDuration.discountPercent}%` : `Скидка ${selectedDuration.discountPercent}%`}
                   </span>
                 )}
               </div>
@@ -511,6 +514,9 @@ export const ProductModal: React.FC<ProductModalProps> = ({
               <div className="grid grid-cols-3 gap-2">
                 {product.durations.map((dur) => {
                   const isSelected = selectedDuration.months === dur.months;
+                  const durLabel = lang === 'en'
+                    ? dur.months === 1 ? '1 month' : dur.months === 12 ? '1 year' : `${dur.months} months`
+                    : dur.label;
                   return (
                     <button
                       key={dur.months}
@@ -527,15 +533,15 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                           -{dur.discountPercent}%
                         </span>
                       )}
-                      <div className="text-xs font-bold">{dur.label}</div>
+                      <div className="text-xs font-bold">{durLabel}</div>
                       <div className="text-[10px] text-white/40 font-mono mt-0.5">
                         {dur.months === 1
-                          ? `$${selectedOption.baseMonthlyPrice}/мес`
+                          ? `$${selectedOption.baseMonthlyPrice}${lang === 'en' ? '/mo' : '/мес'}`
                           : `~$${Math.round(
                               (selectedOption.baseMonthlyPrice *
                                 (100 - dur.discountPercent)) /
                                 100
-                            )}/мес`}
+                            )}${lang === 'en' ? '/mo' : '/мес'}`}
                       </div>
                     </button>
                   );
@@ -548,7 +554,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
               <div className="mb-4 p-3 rounded-2xl bg-pink-950/20 border border-pink-500/30">
                 <label className="text-xs font-bold text-pink-300 mb-1 flex items-center gap-1.5">
                   <Mail className="w-3.5 h-3.5" />
-                  <span>Данные для подключения (Email или @Telegram): *</span>
+                  <span>{lang === 'en' ? 'Delivery Contact (Email or @Telegram): *' : 'Данные для подключения (Email или @Telegram): *'}</span>
                 </label>
                 <input
                   type="text"
@@ -557,7 +563,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                     setContact(e.target.value);
                     if (contactError) setContactError('');
                   }}
-                  placeholder="name@example.com или @username"
+                  placeholder={lang === 'en' ? 'name@example.com or @username' : 'name@example.com или @username'}
                   className={`w-full px-3 py-2 rounded-xl bg-black/40 border text-xs text-white placeholder-white/30 focus:outline-none focus:ring-1 transition-all ${
                     contactError
                       ? 'border-red-500 focus:ring-red-500'
@@ -576,7 +582,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
             <div className="mt-auto pt-2">
               <div className="flex items-center justify-between py-2 border-t border-white/10 mb-3">
                 <div>
-                  <span className="text-xs text-white/50 block">Итого к оплате:</span>
+                  <span className="text-xs text-white/50 block">{lang === 'en' ? 'Total to pay:' : 'Итого к оплате:'}</span>
                   <div className="flex items-baseline gap-1.5">
                     <span className="text-xl font-black text-white font-mono">
                       ${totalPrice.toFixed(2)}
@@ -587,14 +593,14 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                       </span>
                     )}
                     <span className="text-[11px] text-pink-400 font-semibold ml-1">
-                      (${monthlyEquivalent}/мес)
+                      (${monthlyEquivalent}{lang === 'en' ? '/mo' : '/мес'})
                     </span>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-1 text-[11px] text-cyan-300 bg-cyan-950/50 px-2.5 py-1 rounded-lg border border-cyan-500/30">
                   <Zap className="w-3.5 h-3.5" />
-                  <span>Автовыдача 1 мин</span>
+                  <span>{lang === 'en' ? 'Instant 1 min' : 'Автовыдача 1 мин'}</span>
                 </div>
               </div>
 
@@ -604,7 +610,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                 type="button"
                 className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-pink-500 via-fuchsia-500 to-purple-600 hover:from-pink-400 hover:to-purple-500 active:scale-[0.98] text-white font-bold text-sm shadow-[0_0_25px_-5px_rgba(236,72,153,0.6)] flex items-center justify-center gap-2 transition-all cursor-pointer"
               >
-                <span>Купить сейчас за ${totalPrice.toFixed(2)}</span>
+                <span>{lang === 'en' ? `Buy Now for $${totalPrice.toFixed(2)}` : `Купить сейчас за $${totalPrice.toFixed(2)}`}</span>
                 <ChevronRight className="w-4 h-4" />
               </button>
             </div>

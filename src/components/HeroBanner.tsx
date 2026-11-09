@@ -1,7 +1,13 @@
 import React from 'react';
 import { ShieldCheck, Zap, Star } from 'lucide-react';
+import type { Language } from '../utils/i18n';
 
-export const HeroBanner: React.FC = () => {
+interface HeroBannerProps {
+  lang?: Language;
+}
+
+export const HeroBanner: React.FC<HeroBannerProps> = ({ lang = 'ru' }) => {
+  const isEn = lang === 'en';
   return (
     <div className="relative w-full px-4 pt-2 pb-5 overflow-hidden">
       {/* Background Ambient Glows */}
@@ -37,11 +43,13 @@ export const HeroBanner: React.FC = () => {
               <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/5 border border-white/10 backdrop-blur-sm mb-1.5">
                 <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
                 <span className="text-[11px] font-bold tracking-wide uppercase text-cyan-300">
-                  Лучшие ИИ-сервисы в один клик
+                  {isEn ? "World's Best AI Tools in 1 Click" : 'Лучшие ИИ-сервисы в один клик'}
                 </span>
               </div>
               <p className="text-xs text-white/60 leading-relaxed max-w-[320px] mx-auto">
-                Официальные доступы к ChatGPT Plus, Gemini Advanced, Claude 3.7 и CapCut без зарубежных карт.
+                {isEn 
+                  ? 'Official premium access to ChatGPT Plus, Gemini Advanced, Claude 3.7 & CapCut Pro.'
+                  : 'Официальные доступы к ChatGPT Plus, Gemini Advanced, Claude 3.7 и CapCut без зарубежных карт.'}
               </p>
             </div>
           </div>
@@ -54,8 +62,8 @@ export const HeroBanner: React.FC = () => {
               <Zap className="w-4 h-4 fill-pink-400/30 text-pink-400" />
             </div>
             <div className="flex flex-col">
-              <span className="text-[11px] font-bold text-white leading-tight">Моментально</span>
-              <span className="text-[10px] text-white/50 leading-tight">Автовыдача 24/7</span>
+              <span className="text-[11px] font-bold text-white leading-tight">{isEn ? 'Instant Delivery' : 'Моментально'}</span>
+              <span className="text-[10px] text-white/50 leading-tight">{isEn ? 'Auto-delivery 24/7' : 'Автовыдача 24/7'}</span>
             </div>
           </div>
 
@@ -64,8 +72,8 @@ export const HeroBanner: React.FC = () => {
               <ShieldCheck className="w-4 h-4 text-cyan-400" />
             </div>
             <div className="flex flex-col">
-              <span className="text-[11px] font-bold text-white leading-tight">100% Защита</span>
-              <span className="text-[10px] text-white/50 leading-tight">Гарантия на весь срок</span>
+              <span className="text-[11px] font-bold text-white leading-tight">{isEn ? '100% Protection' : '100% Защита'}</span>
+              <span className="text-[10px] text-white/50 leading-tight">{isEn ? 'Full duration warranty' : 'Гарантия на весь срок'}</span>
             </div>
           </div>
         </div>
@@ -75,10 +83,10 @@ export const HeroBanner: React.FC = () => {
           <div className="flex items-center gap-1">
             <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
             <span className="text-white/80 font-semibold">4.9/5</span>
-            <span>(2 400+ отзывов)</span>
+            <span>{isEn ? '(2,400+ reviews)' : '(2 400+ отзывов)'}</span>
           </div>
           <span>•</span>
-          <span className="text-emerald-400/90 font-medium">Работаем без перебоев</span>
+          <span className="text-emerald-400/90 font-medium">{isEn ? 'High Availability 99.9%' : 'Работаем без перебоев'}</span>
         </div>
       </div>
     </div>
