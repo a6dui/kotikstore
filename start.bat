@@ -1,23 +1,18 @@
 @echo off
-chcp 65001 > nul
-set PYTHONIOENCODING=utf-8
-set PYTHONUTF8=1
-title Kotik Store Telegram Bot
 cd /d "%~dp0"
-
+title Kotik Store Telegram Bot
 echo =======================================================
-echo          🐱 Kotik Store Telegram Bot
+echo          Kotik Store Telegram Bot
 echo =======================================================
 echo.
-echo Запуск бота Kotik Store...
+echo Starting Kotik Store Bot...
 echo WebApp URL: https://a6dui.github.io/kotikstore/
 echo.
 
-python bot.py
+"C:\Users\Леха\AppData\Local\Programs\Python\Python311\python.exe" bot.py
 
 if %ERRORLEVEL% NEQ 0 (
     echo.
-    echo ⚠️ Ошибка при выполнении бота (Код ошибки: %ERRORLEVEL%).
-    echo Нажмите любую клавишу для закрытия окна...
-    pause > nul
+    echo Bot stopped with error code: %ERRORLEVEL%
+    pause
 )
