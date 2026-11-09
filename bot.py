@@ -4,6 +4,10 @@ import os
 import sys
 from datetime import datetime
 from aiohttp import web
+from dotenv import load_dotenv
+
+# Load environment variables from .env
+load_dotenv()
 
 from aiogram import Bot, Dispatcher, F, types
 from aiogram.enums import ParseMode
