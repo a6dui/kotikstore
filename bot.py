@@ -2,6 +2,8 @@ import asyncio
 import logging
 import os
 import sys
+from datetime import datetime
+from aiohttp import web
 
 from aiogram import Bot, Dispatcher, F, types
 from aiogram.enums import ParseMode
@@ -17,6 +19,7 @@ from aiogram.types import (
 )
 
 import database as db
+import payments
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -25,10 +28,95 @@ logger = logging.getLogger("KotikStoreBot")
 # Production WebApp URL
 WEBAPP_URL = os.environ.get("WEBAPP_URL", "https://a6dui.github.io/kotikstore/").strip()
 
-# Path to mascot image
+# Path to mascot and avatars
 MASCOT_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "public", "kotik-hero.jpg")
+BOT_AVATAR_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "public", "bot-avatar.jpg")
+CHANNEL_AVATAR_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "public", "channel-avatar.jpg")
 
 dp = Dispatcher()
+bot_instance: Bot = None
+
+
+# =====================================================================
+# ADMIN NOTIFICATIONS SYSTEM (СМС/Оповещения в Telegram боте)
+# =====================================================================
+async def notify_all_admins(bot: Bot, message_html: str):
+    """
+    Sends an immediate HTML formatted notification to all registered staff & owner.
+    """
+    admins = db.get_all_admins()
+    admin_ids = {a["telegram_id"] for a in admins}
+    admin_ids.add(db.OWNER_TELEGRAM_ID)
+
+    for admin_id in admin_ids:
+        try:
+            await bot.send_message(
+                chat_id=admin_id,
+                text=message_html,
+                parse_mode=ParseMode.HTML,
+            )
+        except Exception as e:
+            logger.warning(f"Could not send notification to admin {admin_id}: {e}")
+
+
+async def notify_deposit(
+    bot: Bot,
+    user_id: int,
+    username: str,
+    amount: float,
+    gateway: str,
+    invoice_id: str,
+    x2_active: bool = False,
+):
+    """
+    Formats and broadcasts balance top-up alert to admins.
+    """
+    user_str = f"@{username.lstrip('@')}" if username else f"ID <code>{user_id}</code>"
+    x2_badge = "\n🔥 <b>Применена акция X2 (удвоение на баланс!)</b>" if x2_active else ""
+    gw_name = str(gateway).upper()
+
+    now_str = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+    msg = (
+        f"💳 <b>[НОВОЕ ПОПОЛНЕНИЕ БАЛАНСА]</b>\n\n"
+        f"👤 <b>Пользователь:</b> {user_str} (<code>{user_id}</code>)\n"
+        f"💵 <b>Сумма платежа:</b> <code>+${amount:.2f}</code>{x2_badge}\n"
+        f"⚡ <b>Платежный шлюз:</b> <b>{gw_name}</b>\n"
+        f"🆔 <b>Номер инвойса:</b> <code>{invoice_id}</code>\n"
+        f"🕒 <b>Время транзакции:</b> {now_str}\n\n"
+        f"✅ <i>Баланс пользователя автоматически зачислен в базе.</i>"
+    )
+    await notify_all_admins(bot, msg)
+
+
+async def notify_purchase(
+    bot: Bot,
+    user_id: int,
+    username: str,
+    product_title: str,
+    price: float,
+    order_id: str,
+    item_content: str = "",
+):
+    """
+    Formats and broadcasts instant order purchase alert to admins.
+    """
+    user_str = f"@{username.lstrip('@')}" if username else f"ID <code>{user_id}</code>"
+    now_str = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+
+    content_preview = item_content if item_content else "Личное подключение на аккаунт клиента"
+
+    msg = (
+        f"🛒 <b>[НОВАЯ ПОКУПКА В МАГАЗИНЕ]</b>\n\n"
+        f"👤 <b>Покупатель:</b> {user_str} (<code>{user_id}</code>)\n"
+        f"📦 <b>Товар:</b> <b>{product_title}</b>\n"
+        f"💵 <b>Сумма заказа:</b> <b>${price:.2f}</b>\n"
+        f"🆔 <b>Номер заказа:</b> <code>#{order_id}</code>\n"
+        f"🕒 <b>Время покупки:</b> {now_str}\n\n"
+        f"🔑 <b>Выданный товар / Логин:Пароль:</b>\n"
+        f"<code>{content_preview}</code>\n\n"
+        f"⚡ <i>Товар выдан моментально из склада.</i>"
+    )
+    await notify_all_admins(bot, msg)
 
 
 # --- Keyboards ---
@@ -71,7 +159,6 @@ def get_main_inline_keyboard(is_staff: bool = False) -> InlineKeyboardMarkup:
 
 def get_admin_inline_keyboard() -> InlineKeyboardMarkup:
     """Keyboard inside /admin control panel."""
-    # WebApp URL with admin flag for authorized users
     admin_webapp_url = f"{WEBAPP_URL}?admin=1"
 
     return InlineKeyboardMarkup(
@@ -88,7 +175,7 @@ def get_admin_inline_keyboard() -> InlineKeyboardMarkup:
             ],
             [
                 InlineKeyboardButton(text="⚡ Переключить X2 Бонус", callback_data="admin_toggle_x2"),
-                InlineKeyboardButton(text="📢 Рассылка", callback_data="admin_broadcast_info"),
+                InlineKeyboardButton(text="🧪 Тест уведомлений", callback_data="admin_test_notify"),
             ],
             [
                 InlineKeyboardButton(
@@ -133,6 +220,11 @@ async def handle_start(message: types.Message, bot: Bot):
         "• 🚀 <b>Grok AI</b> (X Premium+, без цензуры, FLUX)\n"
         "• 🎙 <b>ElevenLabs Pro</b> (Клонирование голоса)\n"
         "• 🎬 <b>CapCut Pro</b> (PRO эффекты и 4K рендер)\n\n"
+        "💳 <b>Доступные способы оплаты:</b>\n"
+        "• 🤖 <b>CryptoBot</b> (USDT, TON, BTC — 0% комиссия)\n"
+        "• ⚡ <b>Бот 2328</b> (Telegram Pay / SBP)\n"
+        "• 💳 <b>Platega</b> (СБП, Карты РФ, T-Pay, Сбер)\n"
+        "• 🦊 <b>Enot.io</b> (Карты СНГ, ЮMoney, QIWI)\n\n"
         "⚡ <i>Гарантия на весь оплаченный период • Автовыдача 24/7</i>\n\n"
         "Нажмите <b>«Открыть Kotik Store»</b> ниже для входа в витрину 👇"
     )
@@ -150,7 +242,6 @@ async def handle_start(message: types.Message, bot: Bot):
                 parse_mode=ParseMode.HTML,
                 reply_markup=inline_kb,
             )
-            # Also send reply keyboard
             await message.answer("Меню управления закреплено внизу 🐾", reply_markup=reply_kb)
             return
         except Exception as e:
@@ -191,10 +282,12 @@ async def handle_admin(message: types.Message):
         f"• Выручка: <b>${stats['revenue']:.2f}</b>\n"
         f"• Ключей/аккаунтов на складе: <b>{stats['stock_count']} шт.</b>\n"
         f"• Акция X2 на пополнение: <b>{'🔥 ВКЛЮЧЕНА' if stats['x2_active'] else 'ВЫКЛЮЧЕНА'}</b>\n\n"
-        f"💡 <i>Для управления персоналом используйте кнопки ниже или команды:\n"
+        f"🔔 <b>СМС-оповещения:</b> активны для всех покупок и пополнений (CryptoBot, 2328, Platega, Enot).\n\n"
+        f"💡 <i>Команды персонала:\n"
         f"• <code>/addadmin &lt;ID&gt; [admin/moderator]</code>\n"
         f"• <code>/deladmin &lt;ID&gt;</code>\n"
-        f"• <code>/broadcast &lt;текст&gt;</code></i>"
+        f"• <code>/test_deposit</code> — проверить СМС пополнения\n"
+        f"• <code>/test_purchase</code> — проверить СМС покупки</i>"
     )
 
     await message.answer(
@@ -231,7 +324,7 @@ async def handle_back_to_kotik(event: types.Message | types.CallbackQuery, bot: 
         await event.answer(text, parse_mode=ParseMode.HTML, reply_markup=inline_kb)
 
 
-# --- Policy & Rules Callbacks ---
+# --- Policy & Rules ---
 @dp.callback_query(F.data == "btn_rules")
 @dp.message(F.text == "📜 Соглашение")
 async def handle_rules(event: types.Message | types.CallbackQuery):
@@ -242,8 +335,8 @@ async def handle_rules(event: types.Message | types.CallbackQuery):
         "<b>2. Порядок выдачи:</b>\n"
         "• Готовые аккаунты выдаются моментально ботом сразу после оплаты.\n"
         "• Личные подключения (upgrade вашего аккаунта) производятся в течение 5-15 минут.\n\n"
-        "<b>3. Обязанности сторон:</b>\n"
-        "Покупатель обязуется соблюдать правила сервисов (OpenAI, Anthropic, Google). Запрещены рассылки спама и противоправный контент.\n\n"
+        "<b>3. Способы оплаты:</b>\n"
+        "Поддерживаются CryptoBot (USDT, TON, BTC), Бот 2328, Platega (СБП, Карты РФ), Enot.io.\n\n"
         "<i>Нажмите кнопку ниже, чтобы вернуться в главное меню</i>"
     )
     kb = InlineKeyboardMarkup(
@@ -388,7 +481,46 @@ async def handle_admin_toggle_x2(callback: types.CallbackQuery):
     )
 
 
-# --- Admin Commands: /addadmin and /deladmin ---
+# --- Test Notification Commands for Owner/Admins ---
+@dp.callback_query(F.data == "admin_test_notify")
+@dp.message(Command("test_deposit"))
+async def handle_test_deposit(event: types.Message | types.CallbackQuery, bot: Bot):
+    user = event.from_user
+    if not db.is_staff(user.id):
+        return
+
+    if isinstance(event, types.CallbackQuery):
+        await event.answer("Отправка тестового СМС...")
+
+    await notify_deposit(
+        bot=bot,
+        user_id=user.id,
+        username=user.username or "kirabakuta",
+        amount=25.0,
+        gateway="CryptoBot",
+        invoice_id="INV-TEST-7824",
+        x2_active=True,
+    )
+
+
+@dp.message(Command("test_purchase"))
+async def handle_test_purchase(message: types.Message, bot: Bot):
+    user = message.from_user
+    if not db.is_staff(user.id):
+        return
+
+    await notify_purchase(
+        bot=bot,
+        user_id=user.id,
+        username=user.username or "kirabakuta",
+        product_title="ChatGPT Plus (1 месяц)",
+        price=22.0,
+        order_id="ORD-TEST-9921",
+        item_content="kotik_gpt_pro@gmail.com:KotikPass2026!",
+    )
+
+
+# --- Admin Staff Management Commands ---
 @dp.message(Command("addadmin"))
 async def handle_addadmin(message: types.Message):
     user_id = message.from_user.id
@@ -445,11 +577,82 @@ async def handle_deladmin(message: types.Message):
         await message.answer("❌ Не удалось удалить этого пользователя (возможно, это главный владелец).")
 
 
+# =====================================================================
+# AIOHTTP BACKGROUND SERVER FOR WEBHOOKS & NOTIFICATIONS
+# =====================================================================
+async def handle_notify_purchase_api(request: web.Request):
+    """API endpoint called when a purchase is completed."""
+    try:
+        data = await request.json()
+        user_id = data.get("user_id", 0)
+        username = data.get("username", "")
+        product_title = data.get("product_title", "Нейросеть")
+        price = float(data.get("price", 0.0))
+        order_id = data.get("order_id", f"ORD-{int(datetime.now().timestamp())}")
+        item_content = data.get("item_content", "")
+
+        if bot_instance:
+            await notify_purchase(
+                bot=bot_instance,
+                user_id=user_id,
+                username=username,
+                product_title=product_title,
+                price=price,
+                order_id=order_id,
+                item_content=item_content,
+            )
+        return web.json_response({"ok": True})
+    except Exception as e:
+        logger.error(f"API purchase notify error: {e}")
+        return web.json_response({"ok": False, "error": str(e)}, status=400)
+
+
+async def handle_notify_deposit_api(request: web.Request):
+    """API endpoint called when balance is topped up."""
+    try:
+        data = await request.json()
+        user_id = data.get("user_id", 0)
+        username = data.get("username", "")
+        amount = float(data.get("amount", 0.0))
+        gateway = data.get("gateway", "CryptoBot")
+        invoice_id = data.get("invoice_id", f"INV-{int(datetime.now().timestamp())}")
+        x2_active = bool(data.get("x2_active", False))
+
+        if bot_instance:
+            await notify_deposit(
+                bot=bot_instance,
+                user_id=user_id,
+                username=username,
+                amount=amount,
+                gateway=gateway,
+                invoice_id=invoice_id,
+                x2_active=x2_active,
+            )
+        return web.json_response({"ok": True})
+    except Exception as e:
+        logger.error(f"API deposit notify error: {e}")
+        return web.json_response({"ok": False, "error": str(e)}, status=400)
+
+
+async def start_web_server():
+    """Starts the internal webhook and notification server."""
+    app = web.Application()
+    app.router.add_post("/api/notify/purchase", handle_notify_purchase_api)
+    app.router.add_post("/api/notify/deposit", handle_notify_deposit_api)
+
+    runner = web.AppRunner(app)
+    await runner.setup()
+    port = int(os.environ.get("PORT", 8080))
+    site = web.TCPSite(runner, "0.0.0.0", port)
+    await site.start()
+    logger.info(f"Webhook & Notification API server started on port {port}")
+
+
 # --- Main Entry Point ---
 async def main():
+    global bot_instance
     bot_token = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
     if not bot_token:
-        # Prompt if run interactively
         try:
             bot_token = input("Введите токен вашего Telegram бота (из @BotFather): ").strip()
         except EOFError:
@@ -459,14 +662,23 @@ async def main():
         print("Ошибка: Токен бота не указан!")
         sys.exit(1)
 
-    bot = Bot(token=bot_token)
+    bot_instance = Bot(token=bot_token)
     print("==================================================")
     print("🚀 Kotik Store Telegram Bot успешно запущен!")
     print(f"🔗 WebApp URL: {WEBAPP_URL}")
     print(f"👑 Владелец ID: {db.OWNER_TELEGRAM_ID}")
+    print(f"🖼 Аватар бота: {BOT_AVATAR_PATH}")
+    print(f"📢 Аватар канала: {CHANNEL_AVATAR_PATH}")
+    print(f"💳 Платежные шлюзы: CryptoBot, 2328, Platega, Enot.io")
     print("==================================================")
 
-    await dp.start_polling(bot)
+    # Start background webhook server
+    try:
+        await start_web_server()
+    except Exception as e:
+        logger.warning(f"Could not start background web server: {e}")
+
+    await dp.start_polling(bot_instance)
 
 
 if __name__ == "__main__":

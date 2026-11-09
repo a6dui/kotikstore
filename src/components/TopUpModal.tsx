@@ -9,6 +9,7 @@ import {
   Wallet,
   Sparkles,
   Flame,
+  Zap,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import type { PaymentMethod } from '../types';
@@ -36,18 +37,32 @@ export const TopUpModal: React.FC<TopUpModalProps> = ({
 
   const methods = [
     {
-      id: 'card_sbp' as PaymentMethod,
-      name: 'СБП / Карта (МИР, Сбер, Т-Банк)',
-      badge: 'Моментально',
-      icon: <CreditCard className="w-4 h-4 text-cyan-400" />,
-      rate: '~96 ₽ / $',
-    },
-    {
       id: 'cryptobot' as PaymentMethod,
       name: 'CryptoBot (USDT, TON, BTC)',
       badge: '0% комиссия',
-      icon: <Coins className="w-4 h-4 text-amber-400" />,
+      icon: <Coins className="w-4 h-4 text-emerald-400" />,
       rate: '1.0 USDT / $',
+    },
+    {
+      id: '2328' as PaymentMethod,
+      name: 'Бот 2328 (Telegram Pay / Карты)',
+      badge: 'Автовыдача',
+      icon: <Zap className="w-4 h-4 text-amber-400" />,
+      rate: '~98 ₽ / $',
+    },
+    {
+      id: 'platega' as PaymentMethod,
+      name: 'Platega (СБП, МИР, T-Pay, Сбер)',
+      badge: 'Без комиссии',
+      icon: <CreditCard className="w-4 h-4 text-cyan-400" />,
+      rate: '~98 ₽ / $',
+    },
+    {
+      id: 'enot' as PaymentMethod,
+      name: 'Enot.io (Карты СНГ, ЮMoney)',
+      badge: 'Моментально',
+      icon: <Sparkles className="w-4 h-4 text-fuchsia-400" />,
+      rate: '~100 ₽ / $',
     },
     {
       id: 'stars' as PaymentMethod,

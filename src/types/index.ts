@@ -70,7 +70,14 @@ export interface OrderItem {
   buyerId?: string;
 }
 
-export type PaymentMethod = 'cryptobot' | 'card_sbp' | 'stars' | 'balance';
+export type PaymentMethod =
+  | 'cryptobot'
+  | 'card_sbp'
+  | 'platega'
+  | 'enot'
+  | '2328'
+  | 'stars'
+  | 'balance';
 
 export interface TelegramUser {
   id?: number | string;

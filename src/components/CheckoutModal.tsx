@@ -10,6 +10,8 @@ import {
   CheckCircle2,
   Loader2,
   AlertCircle,
+  Zap,
+  Sparkles,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import type { Product, ProductOption, DurationOption, PaymentMethod, OrderItem } from '../types';
@@ -39,7 +41,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   onClose,
   onOrderSuccess,
 }) => {
-  const [selectedMethod, setSelectedMethod] = useState<PaymentMethod>('card_sbp');
+  const [selectedMethod, setSelectedMethod] = useState<PaymentMethod>('balance');
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string>('');
 
@@ -73,17 +75,33 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
       id: 'cryptobot',
       name: 'CryptoBot (USDT / TON / BTC)',
       badge: '0% комиссия',
-      icon: <Coins className="w-5 h-5 text-amber-400" />,
+      icon: <Coins className="w-5 h-5 text-emerald-400" />,
       description: 'Оплата в Telegram через @CryptoBot (TON, USDT TRC20, BTC)',
+      badgeColor: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
+    },
+    {
+      id: '2328',
+      name: 'Бот 2328 (Telegram Pay / SBP)',
+      badge: 'Автовыдача',
+      icon: <Zap className="w-5 h-5 text-amber-400" />,
+      description: 'Оплата картами РФ, СБП и через Telegram-инвойсы',
       badgeColor: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
     },
     {
-      id: 'card_sbp',
-      name: 'СБП / Карта (МИР, Сбер, Т-Банк)',
-      badge: 'Популярно в РФ',
+      id: 'platega',
+      name: 'Platega (СБП, Карты РФ, T-Pay)',
+      badge: 'Без комиссии',
       icon: <CreditCard className="w-5 h-5 text-cyan-400" />,
-      description: 'Мгновенный перевод по СБП или банковской карте РФ',
+      description: 'Прямой перевод по СБП или банковской карте МИР',
       badgeColor: 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30',
+    },
+    {
+      id: 'enot',
+      name: 'Enot.io (Карты СНГ, ЮMoney)',
+      badge: 'Моментально',
+      icon: <Sparkles className="w-5 h-5 text-fuchsia-400" />,
+      description: 'Оплата банковскими картами СНГ, ЮMoney и кошельками',
+      badgeColor: 'bg-fuchsia-500/20 text-fuchsia-400 border-fuchsia-500/30',
     },
     {
       id: 'stars',
