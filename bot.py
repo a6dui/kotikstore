@@ -3,6 +3,16 @@ import logging
 import os
 import sys
 from datetime import datetime
+
+# Windows Console UTF-8 compatibility fix
+if sys.platform == "win32":
+    try:
+        if hasattr(sys.stdout, "reconfigure"):
+            sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        if hasattr(sys.stderr, "reconfigure"):
+            sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
 from aiohttp import web
 from dotenv import load_dotenv
 
@@ -829,12 +839,12 @@ async def main():
 
     bot_instance = Bot(token=bot_token)
     print("==================================================")
-    print("🚀 Kotik Store Telegram Bot успешно запущен!")
-    print(f"🔗 WebApp URL: {WEBAPP_URL}")
-    print(f"👑 Владелец ID: {db.OWNER_TELEGRAM_ID}")
-    print(f"🖼 Аватар бота: {BOT_AVATAR_PATH}")
-    print(f"📢 Аватар канала: {CHANNEL_AVATAR_PATH}")
-    print(f"💳 Платежные шлюзы: CryptoBot, 2328, Platega, Enot.io")
+    print("[OK] Kotik Store Telegram Bot успешно запущен!")
+    print(f"[*] WebApp URL: {WEBAPP_URL}")
+    print(f"[*] Владелец ID: {db.OWNER_TELEGRAM_ID}")
+    print(f"[*] Аватар бота: {BOT_AVATAR_PATH}")
+    print(f"[*] Аватар канала: {CHANNEL_AVATAR_PATH}")
+    print("[*] Платежные шлюзы: CryptoBot, 2328, Platega, Enot.io")
     print("==================================================")
 
     # Start background webhook server

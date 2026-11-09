@@ -1,5 +1,7 @@
 @echo off
 chcp 65001 > nul
+set PYTHONIOENCODING=utf-8
+set PYTHONUTF8=1
 title Kotik Store Telegram Bot
 cd /d "%~dp0"
 
@@ -15,6 +17,7 @@ python bot.py
 
 if %ERRORLEVEL% NEQ 0 (
     echo.
-    echo ⚠️ Ошибка при выполнении. Нажмите любую клавишу для выхода.
-    pause
+    echo ⚠️ Ошибка при выполнении бота (Код ошибки: %ERRORLEVEL%).
+    echo Нажмите любую клавишу для закрытия окна...
+    pause > nul
 )

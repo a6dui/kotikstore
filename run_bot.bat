@@ -1,12 +1,14 @@
 @echo off
 chcp 65001 > nul
+set PYTHONIOENCODING=utf-8
+set PYTHONUTF8=1
 title Kotik Store Bot Runner
+cd /d "%~dp0"
+
 echo =======================================================
 echo          🐱 Kotik Store Telegram Bot Runner
 echo =======================================================
 echo.
-
-cd /d "%~dp0"
 
 if exist "D:\ZykoStore\.venv\Scripts\python.exe" (
     set "PYTHON_EXE=D:\ZykoStore\.venv\Scripts\python.exe"
@@ -22,5 +24,6 @@ echo.
 if %ERRORLEVEL% NEQ 0 (
     echo.
     echo ⚠️ Бот завершил работу с ошибкой (Код: %ERRORLEVEL%).
-    pause
+    echo Нажмите любую клавишу для закрытия...
+    pause > nul
 )
