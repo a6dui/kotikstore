@@ -212,6 +212,9 @@ async def handle_start(message: types.Message, bot: Bot):
     username = message.from_user.username or ""
     first_name = message.from_user.first_name or "Котик-Друг"
 
+    # Ник пользователя (предпочитаем @username, если есть, иначе имя)
+    user_nick = f"@{username}" if username else first_name
+
     # Save to SQLite DB
     db.get_or_create_user(user_id, username, first_name)
     is_admin = db.is_staff(user_id)
@@ -229,8 +232,9 @@ async def handle_start(message: types.Message, bot: Bot):
         logger.warning(f"Could not set menu button: {e}")
 
     welcome_text = (
-        f"👋 <b>Привет, {first_name}!</b>\n\n"
-        "Добро пожаловать в официальный бот <b>Kotik Store</b> — магазин лучших ИИ-сервисов и цифровых подписок!\n\n"
+        f"- Привет, {user_nick}! ⭐\n\n"
+        f"- Добро пожаловать в <b>Kotik Store</b>!\n\n"
+        f"- Лучший проводник в мир подписок на любые сервисы!\n\n"
         "✨ <b>В наличии нейросети с моментальной автовыдачей:</b>\n"
         "• 🤖 <b>ChatGPT Plus</b> (o1, GPT-4o, Canvas, DALL-E)\n"
         "• ✨ <b>Gemini Advanced</b> (2M контекст, 2ТБ Google One)\n"
