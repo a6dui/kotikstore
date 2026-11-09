@@ -126,6 +126,7 @@ def get_main_reply_keyboard(is_staff: bool = False) -> ReplyKeyboardMarkup:
         [KeyboardButton(text="🐱 Открыть Kotik Store", web_app=WebAppInfo(url=WEBAPP_URL))],
         [KeyboardButton(text="👤 Мой кабинет"), KeyboardButton(text="💬 Поддержка")],
         [KeyboardButton(text="📜 Соглашение"), KeyboardButton(text="🛡️ Гарантия и возврат")],
+        [KeyboardButton(text="🔒 Приватность")],
     ]
     if is_staff:
         keyboard.append([KeyboardButton(text="⚙️ Панель управления (/admin)")])
@@ -143,10 +144,13 @@ def get_main_inline_keyboard(is_staff: bool = False) -> InlineKeyboardMarkup:
         ],
         [
             InlineKeyboardButton(text="📜 Соглашение", callback_data="btn_rules"),
-            InlineKeyboardButton(text="🛡️ Гарантии", callback_data="btn_warranty"),
+            InlineKeyboardButton(text="🛡️ Гарантия и возврат", callback_data="btn_warranty"),
         ],
         [
-            InlineKeyboardButton(text="💬 Поддержка (@KotikSupport)", url="https://t.me/KotikSupport"),
+            InlineKeyboardButton(text="🔒 Приватность", callback_data="btn_privacy"),
+            InlineKeyboardButton(text="💬 Поддержка", callback_data="btn_support"),
+        ],
+        [
             InlineKeyboardButton(text="📢 Наш Канал", url="https://t.me/KotikChannel"),
         ],
     ]
@@ -324,24 +328,40 @@ async def handle_back_to_kotik(event: types.Message | types.CallbackQuery, bot: 
         await event.answer(text, parse_mode=ParseMode.HTML, reply_markup=inline_kb)
 
 
-# --- Policy & Rules ---
+# --- Policy, Warranty, Privacy & Support (ZykoStore Standard) ---
 @dp.callback_query(F.data == "btn_rules")
+@dp.message(Command("rules"))
 @dp.message(F.text == "📜 Соглашение")
 async def handle_rules(event: types.Message | types.CallbackQuery):
     rules_text = (
         "📜 <b>Пользовательское соглашение Kotik Store</b>\n\n"
-        "<b>1. Предмет соглашения:</b>\n"
-        "Kotik Store предоставляет официальные доступы к цифровым подпискам и API-ключам ведущих нейросетей.\n\n"
-        "<b>2. Порядок выдачи:</b>\n"
-        "• Готовые аккаунты выдаются моментально ботом сразу после оплаты.\n"
-        "• Личные подключения (upgrade вашего аккаунта) производятся в течение 5-15 минут.\n\n"
-        "<b>3. Способы оплаты:</b>\n"
-        "Поддерживаются CryptoBot (USDT, TON, BTC), Бот 2328, Platega (СБП, Карты РФ), Enot.io.\n\n"
-        "<i>Нажмите кнопку ниже, чтобы вернуться в главное меню</i>"
+        "<b>1. Общие положения</b>\n"
+        "1.1. Настоящее Пользовательское соглашение регулирует порядок использования онлайн-сервиса Kotik Store (далее — «Сервис»).\n"
+        "1.2. Используя бота, WebApp или совершая покупки, Пользователь подтверждает, что полностью ознакомился с условиями и принимает их в полном объёме.\n\n"
+        "<b>2. Характер услуг и цифровых товаров</b>\n"
+        "2.1. Сервис предоставляет цифровые товары и услуги нематериального характера (доступы к нейросетям, премиум-подпискам, ключам).\n"
+        "2.2. Пользователь осознаёт, что ценность Сервиса заключается в автоматизированной доставке 24/7, систематизации, сопровождении, технической поддержке и регулярных обновлениях.\n"
+        "2.3. Сервис не гарантирует исключительность или уникальность отдельных элементов ПО вне Сервиса.\n\n"
+        "<b>3. Отказ от гарантий и ответственности</b>\n"
+        "3.1. Услуги и аккаунты предоставляются на условиях «AS IS» («как есть»).\n"
+        "3.2. Администрация не гарантирует соответствие сторонних нейросетей субъективным ожиданиям и не несёт ответственности за действия сторонних AI-провайдеров (OpenAI, Anthropic, Google) или интернет-провайдеров.\n\n"
+        "<b>4. Законность использования</b>\n"
+        "4.1. Пользователь обязуется использовать Сервис исключительно в рамках применимого законодательства и условий обслуживания (ToS) провайдеров.\n"
+        "4.2. Ответственность за использование генераций и материалов возлагается на Пользователя.\n\n"
+        "<b>5. Ограничение доступа & Интеллектуальная собственность</b>\n"
+        "5.1. Все материалы защищены. Запрещается перепродажа или распространение выданных данных третьим лицам.\n"
+        "5.2. Администрация вправе ограничить доступ к Сервису при спаме, злоупотреблениях или оскорблениях поддержки без компенсации."
     )
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="🔙 Вернуться до котика в главное меню", callback_data="btn_back_to_kotik")]
+            [
+                InlineKeyboardButton(text="🛡️ Гарантия и возврат", callback_data="btn_warranty"),
+                InlineKeyboardButton(text="🔒 Приватность", callback_data="btn_privacy"),
+            ],
+            [
+                InlineKeyboardButton(text="💬 Поддержка", callback_data="btn_support"),
+            ],
+            [InlineKeyboardButton(text="🔙 Вернуться до котика в главное меню", callback_data="btn_back_to_kotik")],
         ]
     )
     if isinstance(event, types.CallbackQuery):
@@ -352,14 +372,25 @@ async def handle_rules(event: types.Message | types.CallbackQuery):
 
 
 @dp.callback_query(F.data == "btn_warranty")
+@dp.message(Command("warranty"))
 @dp.message(F.text == "🛡️ Гарантия и возврат")
 async def handle_warranty(event: types.Message | types.CallbackQuery):
     warranty_text = (
-        "🛡️ <b>Гарантийные обязательства и возврат</b>\n\n"
-        "• <b>100% Гарантия:</b> Действует на весь оплаченный срок действия подписки (1, 3, 6 или 12 месяцев).\n"
-        "• <b>Бесплатная замена:</b> Если аккаунт перестал работать по техническим причинам, поддержка производит бесплатную замену в течение 30 минут.\n"
-        "• <b>Возврат средств:</b> Если замена невозможна, баланс возвращается в полном объеме.\n\n"
-        "💬 <b>Служба поддержки:</b> @KotikSupport"
+        "⚖️ <b>Правила возврата и гарантии Kotik Store (ZykoStore Standard)</b>\n\n"
+        "1. <b>Гарантийный период на цифровые товары:</b>\n"
+        "• Первичная проверка качества — в течение <b>15 минут</b> с момента покупки.\n"
+        "• На оплаченные подписки действует гарантия работоспособности на весь оплаченный период (1, 3, 6 или 12 месяцев).\n\n"
+        "2. ⚠️ <b>Обязательные условия для возврата или замены:</b>\n"
+        "• <b>Предоставление непрерывной видеозаписи (видео с экрана) покупки товара и его проверки!</b>\n"
+        "• Видеозапись должна начинаться <i>ДО</i> момента совершения оплаты/покупки и продолжаться до момента первой попытки входа/активации без монтажа, пауз и склеек.\n"
+        "• Наличие объективных признаков неработоспособности данных на момент выдачи.\n\n"
+        "3. 🚫 <b>Отказ в гарантийном обслуживании:</b>\n"
+        "• Отсутствие непрерывного видео проверки.\n"
+        "• Истечение 15-минутного периода подачи первичной претензии.\n"
+        "• Нарушение правил пользования (попытка смены пароля/почты на общих аккаунтах, бан за нарушение правил нейросети).\n"
+        "• Проблемы на стороне клиента (локальные сбои интернет-соединения, отсутствие VPN, неподдерживаемый браузер).\n\n"
+        "4. ⏱ <b>Порядок решения:</b>\n"
+        "При подтверждении невалидности производится моментальная замена товара на аналогичный либо зачисление баланса в WebApp."
     )
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
@@ -374,22 +405,63 @@ async def handle_warranty(event: types.Message | types.CallbackQuery):
         await event.answer(warranty_text, parse_mode=ParseMode.HTML, reply_markup=kb)
 
 
-@dp.message(F.text == "💬 Поддержка")
-async def handle_support(message: types.Message):
-    await message.answer(
-        "💬 <b>Служба поддержки Kotik Store</b>\n\n"
-        "Возник вопрос по заказу, оплате или требуется помощь с активацией?\n\n"
-        "• Прямой контакт: @KotikSupport\n"
-        "• Время ответа: от 2 до 15 минут\n"
-        "• График: 24/7 без выходных",
-        parse_mode=ParseMode.HTML,
-        reply_markup=InlineKeyboardMarkup(
-            inline_keyboard=[
-                [InlineKeyboardButton(text="💬 Написать @KotikSupport", url="https://t.me/KotikSupport")],
-                [InlineKeyboardButton(text="🔙 Вернуться до котика в главное меню", callback_data="btn_back_to_kotik")],
-            ]
-        ),
+@dp.callback_query(F.data == "btn_privacy")
+@dp.message(Command("privacy"))
+@dp.message(F.text == "🔒 Приватность")
+async def handle_privacy(event: types.Message | types.CallbackQuery):
+    privacy_text = (
+        "🔒 <b>Политика конфиденциальности Kotik Store</b>\n\n"
+        "<b>1. Сбор информации:</b>\n"
+        "Мы собираем только минимально необходимые данные для работы магазина:\n"
+        "• Telegram ID, имя пользователя (@username), имя профиля;\n"
+        "• Историю заказов и состояние баланса в боте;\n"
+        "• Технические логи запросов.\n\n"
+        "<b>2. Платежные данные:</b>\n"
+        "Магазин не запрашивает и не хранит паспортные данные, номера банковских карт или приватные ключи кошельков. Все транзакции проводятся через защищенные провайдеры (CryptoBot, Bot 2328, Platega, Enot.io, Stars).\n\n"
+        "<b>3. Защита информации:</b>\n"
+        "Данные никогда не передаются сторонним сервисам или рекламодателям и хранятся на защищенных серверах."
     )
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="🔙 Вернуться до котика в главное меню", callback_data="btn_back_to_kotik")]
+        ]
+    )
+    if isinstance(event, types.CallbackQuery):
+        await event.answer()
+        await event.message.answer(privacy_text, parse_mode=ParseMode.HTML, reply_markup=kb)
+    else:
+        await event.answer(privacy_text, parse_mode=ParseMode.HTML, reply_markup=kb)
+
+
+@dp.callback_query(F.data == "btn_support")
+@dp.message(Command("support"))
+@dp.message(F.text == "💬 Поддержка")
+async def handle_support(event: types.Message | types.CallbackQuery):
+    support_text = (
+        "💬 <b>Служба заботы и поддержки Kotik Store (ZykoStore Standard)</b>\n\n"
+        "Возникли сложности с товаром, активацией подписки или пополнением баланса?\n\n"
+        "👤 <b>Администратор / Поддержка:</b> @KotikSupport (для решения технических вопросов, замен и возвратов)\n"
+        "📢 <b>Наш Telegram-канал:</b> @KotikChannel (новости, раздачи, промокоды)\n\n"
+        "📝 <b>Инструкция для быстрой замены или возврата:</b>\n"
+        "1. Отправьте скриншот ошибки или нерабочего аккаунта прямо в чат @KotikSupport.\n"
+        "2. Приложите видео покупки товара (непрерывная запись экрана с момента покупки до проверки).\n"
+        "3. Опишите проблему и укажите ID заказа из вкладки «Мои подписки».\n\n"
+        "⏱ <i>Среднее время ответа оператора: 2–5 минут (24/7)</i>"
+    )
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text="👤 Написать @KotikSupport", url="https://t.me/KotikSupport"),
+                InlineKeyboardButton(text="📢 Наш Канал", url="https://t.me/KotikChannel"),
+            ],
+            [InlineKeyboardButton(text="🔙 Вернуться до котика в главное меню", callback_data="btn_back_to_kotik")],
+        ]
+    )
+    if isinstance(event, types.CallbackQuery):
+        await event.answer()
+        await event.message.answer(support_text, parse_mode=ParseMode.HTML, reply_markup=kb)
+    else:
+        await event.answer(support_text, parse_mode=ParseMode.HTML, reply_markup=kb)
 
 
 @dp.message(F.text == "👤 Мой кабинет")
