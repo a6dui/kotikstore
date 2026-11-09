@@ -183,7 +183,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         instructions: [
           'Авторизуйтесь на официальном сайте сервиса с полученными данными.',
           'В случае личного подключения инвайт отправлен на указанную почту/профиль.',
-          'Если потребуется код 2FA — напишите нашему боту @KotikSupport, выдача 24/7.',
+          'Если потребуется код 2FA — напишите саппорту @Zykolandstore, выдача 24/7.',
         ],
         brandColor: product.brandColor,
       };

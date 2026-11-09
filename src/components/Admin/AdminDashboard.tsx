@@ -394,7 +394,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       id: `manual-${Date.now()}-${i}`,
       productId: p.id,
       productTitle: p.title,
-      credentials: '📬 Ручная выдача: обратитесь к боту @KotikSupport с номером заказа',
+      credentials: '📬 Ручная выдача: обратитесь к саппорту @Zykolandstore с номером заказа',
       status: 'available',
       addedAt: 'Сегодня',
     }));

@@ -186,8 +186,8 @@ def init_db():
 
     # Seed settings
     cur.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('x2_bonus', 'off')")
-    cur.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('support_contact', '@KotikSupport')")
-    cur.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('channel_link', 'https://t.me/KotikChannel')")
+    cur.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('support_contact', '@Zykolandstore')")
+    cur.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('channel_link', 'https://t.me/KotikNews_shop')")
 
     conn.commit()
     conn.close()

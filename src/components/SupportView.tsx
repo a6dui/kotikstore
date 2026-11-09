@@ -52,7 +52,7 @@ export const SupportView: React.FC<SupportViewProps> = ({
     },
     {
       q: 'Что делать, если слетел доступ к подписке в процессе использования?',
-      a: 'Просто напишите нашему саппорту @KotikSupport в Telegram. Укажите номер вашего заказа из вкладки «Мои подписки» и приложите скриншот проблемы. Оператор ответит в течение 2–5 минут и восстановит доступ.',
+      a: 'Просто напишите нашему саппорту @Zykolandstore в Telegram. Укажите номер вашего заказа из вкладки «Мои подписки» и приложите скриншот проблемы. Оператор ответит в течение 2–5 минут и восстановит доступ.',
     },
     {
       q: 'Какие способы пополнения баланса и оплаты доступны?',
@@ -120,12 +120,12 @@ export const SupportView: React.FC<SupportViewProps> = ({
 
   const handleOpenSupport = () => {
     haptic.medium();
-    openTelegramOrWeb('https://t.me/KotikSupport');
+    openTelegramOrWeb('https://t.me/Zykolandstore');
   };
 
   const handleOpenChannel = () => {
     haptic.medium();
-    openTelegramOrWeb('https://t.me/kotikstore_ai');
+    openTelegramOrWeb('https://t.me/KotikNews_shop');
   };
 
   return (
@@ -155,7 +155,7 @@ export const SupportView: React.FC<SupportViewProps> = ({
             className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-pink-500/20 hover:bg-pink-500/30 border border-pink-500/40 text-pink-300 font-bold text-xs transition-all active:scale-95"
           >
             <MessageCircle className="w-4 h-4 text-pink-400" />
-            <span>@KotikSupport</span>
+            <span>@Zykolandstore</span>
           </button>
 
           <button

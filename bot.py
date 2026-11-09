@@ -155,7 +155,7 @@ def get_main_inline_keyboard(is_staff: bool = False) -> InlineKeyboardMarkup:
             InlineKeyboardButton(text="💬 Поддержка", callback_data="btn_support"),
         ],
         [
-            InlineKeyboardButton(text="📢 Наш Канал", url="https://t.me/KotikChannel"),
+            InlineKeyboardButton(text="📢 Наш Канал", url="https://t.me/KotikNews_shop"),
         ],
     ]
     if is_staff:
@@ -317,7 +317,7 @@ async def handle_back_to_kotik(event: types.Message | types.CallbackQuery, bot: 
         f"🐱 <b>Вы вернулись к Котику в главное меню!</b>\n\n"
         "Здесь вы можете зайти в магазин, прочитать соглашение и правила гарантии, или написать в поддержку:\n\n"
         "• <b>Витрина:</b> нажмите кнопку «Открыть Kotik Store»\n"
-        "• <b>Поддержка:</b> @KotikSupport (работает 24/7)\n"
+        "• <b>Поддержка:</b> @Zykolandstore (работает 24/7)\n"
         "• <b>Гарантия:</b> 100% замена или возврат средств"
     )
 
@@ -398,7 +398,7 @@ async def handle_warranty(event: types.Message | types.CallbackQuery):
     )
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="💬 Написать в поддержку", url="https://t.me/KotikSupport")],
+            [InlineKeyboardButton(text="💬 Написать в поддержку", url="https://t.me/Zykolandstore")],
             [InlineKeyboardButton(text="🔙 Вернуться до котика в главное меню", callback_data="btn_back_to_kotik")],
         ]
     )
@@ -442,12 +442,12 @@ async def handle_privacy(event: types.Message | types.CallbackQuery):
 @dp.message(F.text == "💬 Поддержка")
 async def handle_support(event: types.Message | types.CallbackQuery):
     support_text = (
-        "💬 <b>Служба заботы и поддержки Kotik Store (ZykoStore Standard)</b>\n\n"
+        "💬 <b>Служба заботы и поддержки Kotik Store</b>\n\n"
         "Возникли сложности с товаром, активацией подписки или пополнением баланса?\n\n"
-        "👤 <b>Администратор / Поддержка:</b> @KotikSupport (для решения технических вопросов, замен и возвратов)\n"
-        "📢 <b>Наш Telegram-канал:</b> @KotikChannel (новости, раздачи, промокоды)\n\n"
+        "👤 <b>Администратор / Поддержка:</b> @Zykolandstore (для решения технических вопросов, замен и возвратов)\n"
+        "📢 <b>Наш Telegram-канал:</b> @KotikNews_shop (новости, раздачи, промокоды)\n\n"
         "📝 <b>Инструкция для быстрой замены или возврата:</b>\n"
-        "1. Отправьте скриншот ошибки или нерабочего аккаунта прямо в чат @KotikSupport.\n"
+        "1. Отправьте скриншот ошибки или нерабочего аккаунта прямо в чат @Zykolandstore.\n"
         "2. Приложите видео покупки товара (непрерывная запись экрана с момента покупки до проверки).\n"
         "3. Опишите проблему и укажите ID заказа из вкладки «Мои подписки».\n\n"
         "⏱ <i>Среднее время ответа оператора: 2–5 минут (24/7)</i>"
@@ -455,8 +455,8 @@ async def handle_support(event: types.Message | types.CallbackQuery):
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(text="👤 Написать @KotikSupport", url="https://t.me/KotikSupport"),
-                InlineKeyboardButton(text="📢 Наш Канал", url="https://t.me/KotikChannel"),
+                InlineKeyboardButton(text="👤 Написать @Zykolandstore", url="https://t.me/Zykolandstore"),
+                InlineKeyboardButton(text="📢 Наш Канал", url="https://t.me/KotikNews_shop"),
             ],
             [InlineKeyboardButton(text="🔙 Вернуться до котика в главное меню", callback_data="btn_back_to_kotik")],
         ]
