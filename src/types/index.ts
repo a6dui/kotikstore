@@ -119,6 +119,17 @@ export interface AnalyticsDataPoint {
   churn: number;
 }
 
+export type AdminRole = 'super_admin' | 'admin' | 'moderator';
+
+export interface StaffMember {
+  telegramId: string | number;
+  username: string;
+  name?: string;
+  role: AdminRole;
+  addedAt: string;
+  addedBy: string;
+}
+
 export interface AdminUser {
   id: string;
   username: string;
@@ -127,6 +138,7 @@ export interface AdminUser {
   ordersCount: number;
   status: 'active' | 'blocked';
   registeredAt: string;
+  role?: AdminRole;
 }
 
 export type ActiveView = 'shop' | 'orders' | 'reviews' | 'leaderboard' | 'wishlist' | 'profile' | 'admin';

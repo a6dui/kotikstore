@@ -27,6 +27,8 @@ import type {
   AdminActivity,
   AdminMetrics,
   BroadcastSegment,
+  StaffMember,
+  AdminRole,
 } from '../../types';
 import { haptic } from '../../utils/telegram';
 
@@ -38,7 +40,8 @@ type AdminTab =
   | 'coupons'
   | 'broadcast'
   | 'instructions'
-  | 'users_refund';
+  | 'users_refund'
+  | 'staff';
 
 interface AdminDashboardProps {
   isOpen: boolean;
@@ -59,6 +62,8 @@ interface AdminDashboardProps {
   activities: AdminActivity[];
   metrics: AdminMetrics;
   onUpdateMetrics: (m: AdminMetrics) => void;
+  staff?: StaffMember[];
+  onUpdateStaff?: (staff: StaffMember[]) => void;
 }
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({
@@ -80,10 +85,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   activities,
   metrics,
   onUpdateMetrics,
+  staff = [],
+  onUpdateStaff,
 }) => {
   const [activeTab, setActiveTab] = useState<AdminTab>('overview');
   const [chartMetric, setChartMetric] = useState<keyof AnalyticsDataPoint>('sales');
   const [activityList, setActivityList] = useState<AdminActivity[]>(activities);
+
+  // Staff management states
+  const [staffList, setStaffList] = useState<StaffMember[]>(staff);
+  const [newStaffId, setNewStaffId] = useState('');
+  const [newStaffUsername, setNewStaffUsername] = useState('');
+  const [newStaffName, setNewStaffName] = useState('');
+  const [newStaffRole, setNewStaffRole] = useState<AdminRole>('admin');
+  const [staffMsg, setStaffMsg] = useState('');
 
   // Catalog tab states
   const [newCatEmoji, setNewCatEmoji] = useState('🌟');
@@ -507,6 +522,42 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setAdjustAmount('');
   };
 
+  // 9. Staff Management Actions
+  const handleAddStaff = () => {
+    if (!newStaffId.trim()) {
+      setStaffMsg('Введите Telegram ID сотрудника!');
+      return;
+    }
+    haptic.success();
+    const newMember: StaffMember = {
+      telegramId: newStaffId.trim(),
+      username: newStaffUsername.trim().replace('@', '') || `user_${newStaffId.trim()}`,
+      name: newStaffName.trim() || 'Сотрудник Kotik',
+      role: newStaffRole,
+      addedAt: new Date().toISOString().split('T')[0],
+      addedBy: 'Владелец',
+    };
+    const updated = [...staffList, newMember];
+    setStaffList(updated);
+    if (onUpdateStaff) onUpdateStaff(updated);
+    setNewStaffId('');
+    setNewStaffUsername('');
+    setNewStaffName('');
+    setStaffMsg(`✅ ${newMember.name} добавлен как ${newMember.role === 'admin' ? 'Администратор' : 'Модератор'}!`);
+    setTimeout(() => setStaffMsg(''), 4000);
+  };
+
+  const handleRemoveStaff = (tId: string | number) => {
+    if (String(tId) === '755843448') {
+      alert('Нельзя удалить главного владельца магазина!');
+      return;
+    }
+    haptic.warning();
+    const updated = staffList.filter((s) => String(s.telegramId) !== String(tId));
+    setStaffList(updated);
+    if (onUpdateStaff) onUpdateStaff(updated);
+  };
+
   // Chart max value for SVG rendering
   const maxVal = Math.max(...analytics.map((a) => Number(a[chartMetric]) || 1), 10);
 
@@ -568,6 +619,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             { id: 'broadcast', label: '📢 Рассылка', count: undefined },
             { id: 'instructions', label: '📝 Инструкции', count: undefined },
             { id: 'users_refund', label: '💰 Пользователи', count: users.length },
+            { id: 'staff', label: '👥 Персонал', count: staffList.length },
           ].map((t) => {
             const isActive = activeTab === t.id;
             return (
@@ -1600,6 +1652,144 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       </div>
                     </div>
                   ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 9: STAFF & MODERATORS */}
+          {activeTab === 'staff' && (
+            <div className="space-y-4 animate-in fade-in">
+              <div className="p-5 rounded-3xl bg-white/[0.03] border border-white/10 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-sm font-black text-white uppercase tracking-wider flex items-center gap-2">
+                      <span>👥 Управление персоналом</span>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-pink-500/20 text-pink-300 border border-pink-500/30">
+                        {staffList.length} чел.
+                      </span>
+                    </h2>
+                    <p className="text-xs text-white/50 mt-0.5">
+                      Только добавленные здесь пользователи видят админку в WebApp и имеют доступ к команде /admin в боте!
+                    </p>
+                  </div>
+                </div>
+
+                {/* Add Staff Form */}
+                <div className="p-4 rounded-2xl bg-black/40 border border-white/10 space-y-3">
+                  <h3 className="text-xs font-bold text-white uppercase tracking-wider">
+                    ➕ Назначить Администратора или Модератора
+                  </h3>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-2.5">
+                    <div>
+                      <label className="block text-[10px] text-white/60 mb-1">Telegram ID (обязательно):</label>
+                      <input
+                        type="text"
+                        placeholder="Например: 755843448"
+                        value={newStaffId}
+                        onChange={(e) => setNewStaffId(e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-xs text-white font-mono placeholder-white/30 focus:border-pink-500 focus:outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] text-white/60 mb-1">Юзернейм @username:</label>
+                      <input
+                        type="text"
+                        placeholder="alex_mod"
+                        value={newStaffUsername}
+                        onChange={(e) => setNewStaffUsername(e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-xs text-white placeholder-white/30 focus:border-pink-500 focus:outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] text-white/60 mb-1">Имя:</label>
+                      <input
+                        type="text"
+                        placeholder="Алексей"
+                        value={newStaffName}
+                        onChange={(e) => setNewStaffName(e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-xs text-white placeholder-white/30 focus:border-pink-500 focus:outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] text-white/60 mb-1">Роль доступа:</label>
+                      <select
+                        value={newStaffRole}
+                        onChange={(e) => setNewStaffRole(e.target.value as AdminRole)}
+                        className="w-full px-3 py-2 rounded-xl bg-neutral-900 border border-white/10 text-xs text-white focus:border-pink-500 focus:outline-none"
+                      >
+                        <option value="admin">🛡️ Администратор (полный)</option>
+                        <option value="moderator">👁️ Модератор (ограниченный)</option>
+                        <option value="super_admin">👑 Супер-Администратор</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-1">
+                    {staffMsg && (
+                      <span className="text-xs font-bold text-emerald-400 animate-pulse">{staffMsg}</span>
+                    )}
+                    <button
+                      onClick={handleAddStaff}
+                      className="ml-auto px-5 py-2.5 rounded-xl bg-gradient-to-r from-pink-500 to-purple-600 text-white font-bold text-xs shadow-lg shadow-pink-500/25 active:scale-95 transition"
+                    >
+                      Назначить права
+                    </button>
+                  </div>
+                </div>
+
+                {/* Staff List Table */}
+                <div className="space-y-2">
+                  <h3 className="text-xs font-bold text-white uppercase tracking-wider">
+                    📋 Текущий список персонала
+                  </h3>
+
+                  <div className="divide-y divide-white/5 rounded-2xl bg-black/40 border border-white/10 overflow-hidden">
+                    {staffList.map((m) => {
+                      const isOwner = String(m.telegramId) === '755843448';
+                      return (
+                        <div key={m.telegramId} className="p-3.5 flex items-center justify-between hover:bg-white/5 transition">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-pink-500/20 to-purple-500/20 border border-pink-500/30 flex items-center justify-center font-bold text-white text-xs">
+                              {m.role === 'super_admin' ? '👑' : m.role === 'admin' ? '🛡️' : '👁️'}
+                            </div>
+
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-extrabold text-white">{m.name || m.username}</span>
+                                <span className="text-xs text-white/50">@{m.username}</span>
+                                <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
+                                  m.role === 'super_admin'
+                                    ? 'bg-yellow-400/20 text-yellow-300 border border-yellow-400/40'
+                                    : m.role === 'admin'
+                                    ? 'bg-pink-500/20 text-pink-300 border border-pink-500/40'
+                                    : 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40'
+                                }`}>
+                                  {m.role === 'super_admin' ? 'Владелец' : m.role === 'admin' ? 'Администратор' : 'Модератор'}
+                                </span>
+                              </div>
+                              <div className="text-[10px] font-mono text-white/40 mt-0.5">
+                                ID: <span className="text-cyan-300 font-bold">{m.telegramId}</span> • Добавлен: {m.addedAt}
+                              </div>
+                            </div>
+                          </div>
+
+                          {!isOwner && (
+                            <button
+                              onClick={() => handleRemoveStaff(m.telegramId)}
+                              className="px-3 py-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 text-xs font-bold transition"
+                            >
+                              Отозвать права
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
             </div>

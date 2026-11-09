@@ -29,6 +29,7 @@ import {
   INITIAL_REVIEWS,
   INITIAL_LEADERBOARD,
   INITIAL_DAILY_STREAK,
+  INITIAL_STAFF,
 } from './data/initialData';
 import type {
   ActiveView,
@@ -48,8 +49,9 @@ import type {
   LeaderboardUser,
   DailyStreakState,
   PolicyType,
+  StaffMember,
 } from './types';
-import { initTelegramApp, getTelegramUser, triggerHaptic } from './utils/telegram';
+import { initTelegramApp, getTelegramUser, triggerHaptic, isStaffUser } from './utils/telegram';
 import { Heart, ShoppingBag } from 'lucide-react';
 
 export function App() {
@@ -128,6 +130,16 @@ export function App() {
     return saved !== null ? JSON.parse(saved) : INITIAL_METRICS;
   });
 
+  const [staffList, setStaffList] = useState<StaffMember[]>(() => {
+    const saved = localStorage.getItem('kotik_staff');
+    return saved !== null ? JSON.parse(saved) : INITIAL_STAFF;
+  });
+
+  // Calculate if current user has staff permissions (Owner/Admin/Moderator)
+  const isStaff = useMemo(() => {
+    return isStaffUser(user.id, staffList);
+  }, [user.id, staffList]);
+
   // Search & Filter
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedCategory, setSelectedCategory] = useState<ProductCategory>('all');
@@ -195,6 +207,10 @@ export function App() {
   useEffect(() => {
     localStorage.setItem('kotik_admin_users', JSON.stringify(adminUsers));
   }, [adminUsers]);
+
+  useEffect(() => {
+    localStorage.setItem('kotik_staff', JSON.stringify(staffList));
+  }, [staffList]);
 
   useEffect(() => {
     localStorage.setItem('kotik_admin_orders', JSON.stringify(adminOrders));
@@ -363,6 +379,7 @@ export function App() {
         onOpenTopUp={() => setIsTopUpOpen(true)}
         onOpenAdmin={() => setIsAdminAuthOpen(true)}
         x2PromotionActive={metrics.x2PromotionActive}
+        isStaff={isStaff}
       />
 
       {/* Main Content Area */}
@@ -517,6 +534,7 @@ export function App() {
               onOpenPolicy={(type) => setActivePolicy(type)}
               onOpenAdminAuth={() => setIsAdminAuthOpen(true)}
               x2PromotionActive={metrics.x2PromotionActive}
+              isStaff={isStaff}
             />
           </div>
         )}
@@ -584,7 +602,7 @@ export function App() {
         }}
       />
 
-      {/* Master Admin Dashboard Modal (16 ZykoStore cards) */}
+      {/* Master Admin Dashboard Modal (16 ZykoStore cards + Staff Management) */}
       <AdminDashboard
         isOpen={isAdminDashboardOpen}
         onClose={() => setIsAdminDashboardOpen(false)}
@@ -604,6 +622,8 @@ export function App() {
         activities={activities}
         metrics={metrics}
         onUpdateMetrics={setMetrics}
+        staff={staffList}
+        onUpdateStaff={setStaffList}
       />
 
       {/* Floating Bottom Navigation (6 ZykoStore tabs) */}
@@ -612,6 +632,7 @@ export function App() {
         onChangeView={setActiveView}
         ordersCount={orders.length}
         wishlistCount={favorites.length}
+        isAdmin={isStaff}
       />
     </div>
   );

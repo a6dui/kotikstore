@@ -11,6 +11,7 @@ import type {
   Review,
   LeaderboardUser,
   DailyStreakState,
+  StaffMember,
 } from '../types';
 
 export const INITIAL_CATEGORIES: Category[] = [
@@ -378,6 +379,17 @@ export const INITIAL_COUPONS: Coupon[] = [
     usedCount: 95,
     isActive: true,
     createdAt: '2026-11-08',
+  },
+];
+
+export const INITIAL_STAFF: StaffMember[] = [
+  {
+    telegramId: 755843448,
+    username: 'kirabakuta',
+    name: 'Владелец (Owner)',
+    role: 'super_admin',
+    addedAt: '2026-11-04 14:54',
+    addedBy: 'Система',
   },
 ];
 

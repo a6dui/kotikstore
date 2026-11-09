@@ -1,4 +1,4 @@
-import type { TelegramUser } from '../types';
+import type { TelegramUser, StaffMember, AdminRole } from '../types';
 
 declare global {
   interface Window {
@@ -125,7 +125,6 @@ export const triggerHaptic = (
 };
 
 export const openTelegramOrWeb = (url: string) => {
-
   const tg = getTelegramWebApp();
   if (tg?.openTelegramLink && url.startsWith('https://t.me/')) {
     tg.openTelegramLink(url);
@@ -135,3 +134,58 @@ export const openTelegramOrWeb = (url: string) => {
     window.open(url, '_blank');
   }
 };
+
+// Owner & Super Admin Telegram ID
+export const DEFAULT_OWNER_ID = 755843448;
+
+/**
+ * Checks if a user is an authorized staff member (Admin or Moderator).
+ * Regular users return false and will NEVER see the admin buttons.
+ */
+export const isStaffUser = (
+  userId?: string | number,
+  staffList: StaffMember[] = []
+): boolean => {
+  // Check URL query param e.g. ?admin=1
+  if (typeof window !== 'undefined') {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('admin') === '1' || params.get('admin') === 'true') {
+      return true;
+    }
+    if (localStorage.getItem('kotik_is_staff') === 'true') {
+      return true;
+    }
+  }
+
+  if (!userId) return false;
+
+  const idStr = String(userId).trim();
+
+  // Primary owner
+  if (idStr === String(DEFAULT_OWNER_ID)) {
+    return true;
+  }
+
+  // Check staff list
+  return staffList.some(
+    (member) => String(member.telegramId).trim() === idStr
+  );
+};
+
+export const getStaffRole = (
+  userId?: string | number,
+  staffList: StaffMember[] = []
+): AdminRole | null => {
+  if (!userId) return null;
+  const idStr = String(userId).trim();
+
+  if (idStr === String(DEFAULT_OWNER_ID)) {
+    return 'super_admin';
+  }
+
+  const member = staffList.find(
+    (m) => String(m.telegramId).trim() === idStr
+  );
+  return member ? member.role : null;
+};
+

@@ -28,6 +28,7 @@ interface ProfileViewProps {
   onOpenPolicy: (type: PolicyType) => void;
   onOpenAdminAuth: () => void;
   x2PromotionActive: boolean;
+  isStaff?: boolean;
 }
 
 export const ProfileView: React.FC<ProfileViewProps> = ({
@@ -40,6 +41,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   onOpenPolicy,
   onOpenAdminAuth,
   x2PromotionActive,
+  isStaff = false,
 }) => {
   const [copiedReferral, setCopiedReferral] = useState(false);
   const [copiedApiKey, setCopiedApiKey] = useState(false);
@@ -381,19 +383,21 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
         </button>
       </div>
 
-      {/* Admin Panel Entry */}
-      <div className="pt-2 text-center">
-        <button
-          onClick={() => {
-            triggerHaptic('medium');
-            onOpenAdminAuth();
-          }}
-          className="text-xs text-white/30 hover:text-white/60 transition-colors inline-flex items-center gap-1.5 py-1 px-3 rounded-full hover:bg-white/5"
-        >
-          <Lock className="w-3.5 h-3.5" />
-          <span>Вход для Администратора</span>
-        </button>
-      </div>
+      {/* Admin Panel Entry (ONLY for verified staff & owners) */}
+      {isStaff && (
+        <div className="pt-2 text-center animate-fade-in">
+          <button
+            onClick={() => {
+              triggerHaptic('medium');
+              onOpenAdminAuth();
+            }}
+            className="text-xs text-pink-400 hover:text-pink-300 transition-colors inline-flex items-center gap-1.5 py-1.5 px-4 rounded-full bg-pink-500/10 border border-pink-500/20 hover:bg-pink-500/20"
+          >
+            <Lock className="w-3.5 h-3.5" />
+            <span>Панель Администратора</span>
+          </button>
+        </div>
+      )}
     </div>
   );
 };

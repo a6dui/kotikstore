@@ -9,6 +9,7 @@ interface HeaderProps {
   onOpenTopUp: () => void;
   onOpenAdmin: () => void;
   x2PromotionActive?: boolean;
+  isStaff?: boolean;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -17,6 +18,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenTopUp,
   onOpenAdmin,
   x2PromotionActive = false,
+  isStaff = false,
 }) => {
   const handleTopUpClick = () => {
     haptic.medium();
@@ -75,15 +77,17 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Right Action Buttons */}
         <div className="flex items-center gap-2">
-          {/* Admin Access Button */}
-          <button
-            onClick={handleAdminClick}
-            type="button"
-            title="Панель администратора"
-            className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 active:scale-95 border border-white/10 text-white/70 hover:text-pink-300 flex items-center justify-center transition-all cursor-pointer"
-          >
-            <SlidersHorizontal className="w-3.5 h-3.5" />
-          </button>
+          {/* Admin Access Button (ONLY for verified staff & owners) */}
+          {isStaff && (
+            <button
+              onClick={handleAdminClick}
+              type="button"
+              title="Панель администратора"
+              className="w-8 h-8 rounded-full bg-pink-500/20 hover:bg-pink-500/30 active:scale-95 border border-pink-500/40 text-pink-300 flex items-center justify-center transition-all cursor-pointer shadow-[0_0_10px_rgba(236,72,153,0.3)] animate-pulse"
+            >
+              <SlidersHorizontal className="w-3.5 h-3.5" />
+            </button>
+          )}
 
           {/* Interactive Balance Pill */}
           <button
