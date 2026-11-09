@@ -135,16 +135,13 @@ async def notify_purchase(
 
 # --- Keyboards ---
 def get_main_reply_keyboard(is_staff: bool = False) -> ReplyKeyboardMarkup:
-    """Standard bottom persistent keyboard with Kotik main menu buttons."""
-    keyboard = [
-        [KeyboardButton(text="🐱 Открыть Kotik Store", web_app=WebAppInfo(url=WEBAPP_URL))],
-        [KeyboardButton(text="👤 Мой кабинет"), KeyboardButton(text="💬 Поддержка")],
-        [KeyboardButton(text="📜 Соглашение"), KeyboardButton(text="🛡️ Гарантия и возврат")],
-        [KeyboardButton(text="🔒 Приватность")],
-    ]
-    if is_staff:
-        keyboard.append([KeyboardButton(text="⚙️ Панель управления (/admin)")])
-    return ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
+    """Bottom persistent keyboard with one single button to return to main menu."""
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="🐱 Вернуться в главное меню")]
+        ],
+        resize_keyboard=True,
+    )
 
 
 def get_main_inline_keyboard(is_staff: bool = False) -> InlineKeyboardMarkup:
@@ -321,29 +318,67 @@ async def handle_admin(message: types.Message):
 
 # --- Navigation: Return to Kotik Main Menu ---
 @dp.callback_query(F.data == "btn_back_to_kotik")
-@dp.message(F.text.lower().contains("вернуться до котика"))
+@dp.message(F.text == "🐱 Вернуться в главное меню")
 @dp.message(F.text.lower().contains("главное меню"))
+@dp.message(F.text.lower().contains("вернуться"))
 async def handle_back_to_kotik(event: types.Message | types.CallbackQuery, bot: Bot):
     user = event.from_user
+    username = user.username or ""
+    first_name = user.first_name or "Котик-Друг"
+    user_nick = f"@{username}" if username else first_name
     is_admin = db.is_staff(user.id)
 
-    text = (
-        f"🐱 <b>Вы вернулись к Котику в главное меню!</b>\n\n"
-        "Здесь вы можете зайти в магазин, прочитать соглашение и правила гарантии, или написать в поддержку:\n\n"
-        "• <b>Витрина:</b> нажмите кнопку «Открыть Kotik Store»\n"
-        "• <b>Поддержка:</b> @Zykolandstore (работает 24/7)\n"
-        "• <b>Гарантия:</b> 100% замена или возврат средств"
+    welcome_text = (
+        f"- Привет, {user_nick}! ⭐\n\n"
+        f"- Добро пожаловать в <b>Kotik Store</b>!\n\n"
+        f"- Лучший проводник в мир подписок на любые сервисы!\n\n"
+        "✨ <b>В наличии нейросети с моментальной автовыдачей:</b>\n"
+        "• 🤖 <b>ChatGPT Plus</b> (o1, GPT-4o, Canvas, DALL-E)\n"
+        "• ✨ <b>Gemini Advanced</b> (2M контекст, 2ТБ Google One)\n"
+        "• 💻 <b>Claude 3.7 Sonnet Pro</b> (Топ для кода)\n"
+        "• 🚀 <b>Grok AI</b> (X Premium+, без цензуры, FLUX)\n"
+        "• 🎙 <b>ElevenLabs Pro</b> (Клонирование голоса)\n"
+        "• 🎬 <b>CapCut Pro</b> (PRO эффекты и 4K рендер)\n\n"
+        "💳 <b>Доступные способы оплаты:</b>\n"
+        "• 🤖 <b>CryptoBot</b> (USDT, TON, BTC — 0% комиссия)\n"
+        "• ⚡ <b>Бот 2328</b> (Telegram Pay / SBP)\n"
+        "• 💳 <b>Platega</b> (СБП, Карты РФ, T-Pay, Сбер)\n"
+        "• 🦊 <b>Enot.io</b> (Карты СНГ, ЮMoney, QIWI)\n\n"
+        "⚡ <i>Гарантия на весь оплаченный период • Автовыдача 24/7</i>\n\n"
+        "Нажмите <b>«Открыть Kotik Store»</b> ниже для входа в витрину 👇"
     )
 
-    reply_kb = get_main_reply_keyboard(is_admin)
     inline_kb = get_main_inline_keyboard(is_admin)
 
     if isinstance(event, types.CallbackQuery):
-        await event.answer("Возвращаемся к Котику... 🐾")
-        await event.message.answer(text, parse_mode=ParseMode.HTML, reply_markup=inline_kb)
-        await event.message.answer("Меню магазина активно внизу 👇", reply_markup=reply_kb)
+        await event.answer("Возвращаемся в главное меню... 🐾")
+        if os.path.exists(MASCOT_PATH):
+            try:
+                photo = FSInputFile(MASCOT_PATH)
+                await event.message.answer_photo(
+                    photo=photo,
+                    caption=welcome_text,
+                    parse_mode=ParseMode.HTML,
+                    reply_markup=inline_kb,
+                )
+                return
+            except Exception:
+                pass
+        await event.message.answer(welcome_text, parse_mode=ParseMode.HTML, reply_markup=inline_kb)
     else:
-        await event.answer(text, parse_mode=ParseMode.HTML, reply_markup=inline_kb)
+        if os.path.exists(MASCOT_PATH):
+            try:
+                photo = FSInputFile(MASCOT_PATH)
+                await event.answer_photo(
+                    photo=photo,
+                    caption=welcome_text,
+                    parse_mode=ParseMode.HTML,
+                    reply_markup=inline_kb,
+                )
+                return
+            except Exception:
+                pass
+        await event.answer(welcome_text, parse_mode=ParseMode.HTML, reply_markup=inline_kb)
 
 
 # --- Policy, Warranty, Privacy & Support (ZykoStore Standard) ---
