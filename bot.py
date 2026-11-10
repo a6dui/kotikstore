@@ -152,6 +152,18 @@ async def is_subscribed_to_channel(bot: Bot, user_id: int) -> bool:
 
 
 # --- Texts & Keyboards (Multilingual RU / EN) ---
+def resolve_display_name(first_name: str | None, username: str | None, lang: str = "ru") -> str:
+    """
+    Returns user's real Telegram display name (e.g. 'Дима'), falling back to @username if no name is set.
+    """
+    clean_name = (first_name or "").strip()
+    if clean_name and clean_name not in ("Котик-Друг", "None", ""):
+        return clean_name
+    if username and username.strip():
+        return f"@{username.strip()}"
+    return "Kotik Friend" if lang == "en" else "Котик-Друг"
+
+
 def get_welcome_text(user_nick: str, lang: str = "ru") -> str:
     if lang == "en":
         return (
@@ -249,9 +261,15 @@ def get_main_inline_keyboard(lang: str = "ru", is_staff: bool = False) -> Inline
         ],
         [
             InlineKeyboardButton(text="📢 Our Channel" if is_en else "📢 Наш Канал", url=CHANNEL_URL),
+        ],
+        [
             InlineKeyboardButton(
-                text="🌐 Language: 🇬🇧 EN" if is_en else "🌐 Язык: 🇷🇺 RU",
-                callback_data="btn_toggle_lang",
+                text="🇷🇺 Русский ✅" if not is_en else "🇷🇺 Русский",
+                callback_data="btn_set_lang_ru",
+            ),
+            InlineKeyboardButton(
+                text="🇬🇧 English ✅" if is_en else "🇬🇧 English",
+                callback_data="btn_set_lang_en",
             ),
         ],
     ]
@@ -284,9 +302,13 @@ def get_sub_inline_keyboard(lang: str = "ru") -> InlineKeyboardMarkup:
             ],
             [
                 InlineKeyboardButton(
-                    text="🌐 Switch to English" if not is_en else "🌐 Переключить на Русский",
-                    callback_data="btn_toggle_lang_sub",
-                )
+                    text="🇷🇺 Русский ✅" if not is_en else "🇷🇺 Русский",
+                    callback_data="btn_set_lang_ru_sub",
+                ),
+                InlineKeyboardButton(
+                    text="🇬🇧 English ✅" if is_en else "🇬🇧 English",
+                    callback_data="btn_set_lang_en_sub",
+                ),
             ],
         ]
     )
@@ -327,7 +349,7 @@ def get_admin_inline_keyboard(lang: str = "ru") -> InlineKeyboardMarkup:
 async def handle_start(message: types.Message, bot: Bot):
     user_id = message.from_user.id
     username = message.from_user.username or ""
-    first_name = message.from_user.first_name or "Котик-Друг"
+    first_name = message.from_user.first_name or ""
 
     # Save to SQLite DB
     db.get_or_create_user(user_id, username, first_name)
@@ -355,7 +377,7 @@ async def handle_start(message: types.Message, bot: Bot):
         return
 
     # 2. User is subscribed -> Show Main Menu
-    user_nick = f"@{username}" if username else first_name
+    user_nick = resolve_display_name(first_name, username, lang)
     welcome_text = get_welcome_text(user_nick, lang)
     reply_kb = get_main_reply_keyboard(lang)
     inline_kb = get_main_inline_keyboard(lang, is_admin)
@@ -400,7 +422,7 @@ async def handle_start(message: types.Message, bot: Bot):
 async def handle_check_subscription(callback: types.CallbackQuery, bot: Bot):
     user_id = callback.from_user.id
     username = callback.from_user.username or ""
-    first_name = callback.from_user.first_name or "Котик-Друг"
+    first_name = callback.from_user.first_name or ""
     lang = db.get_user_language(user_id)
     is_admin = db.is_staff(user_id)
 
@@ -423,10 +445,22 @@ async def handle_check_subscription(callback: types.CallbackQuery, bot: Bot):
     except Exception:
         pass
 
-    user_nick = f"@{username}" if username else first_name
+    user_nick = resolve_display_name(first_name, username, lang)
     welcome_text = get_welcome_text(user_nick, lang)
     reply_kb = get_main_reply_keyboard(lang)
     inline_kb = get_main_inline_keyboard(lang, is_admin)
+
+    # Set Menu Button
+    try:
+        await bot.set_chat_menu_button(
+            chat_id=callback.message.chat.id,
+            menu_button=MenuButtonWebApp(
+                text="🐱 Kotik Store",
+                web_app=WebAppInfo(url=f"{WEBAPP_URL}?lang={lang}"),
+            ),
+        )
+    except Exception as e:
+        logger.warning(f"Could not set menu button: {e}")
 
     if os.path.exists(MASCOT_PATH):
         try:
@@ -446,20 +480,27 @@ async def handle_check_subscription(callback: types.CallbackQuery, bot: Bot):
     await callback.message.answer("🐾", reply_markup=reply_kb)
 
 
-# --- Callback: Toggle Language (RU <-> EN) ---
-@dp.callback_query(F.data.in_(["btn_toggle_lang", "btn_toggle_lang_sub"]))
-async def handle_toggle_language(callback: types.CallbackQuery, bot: Bot):
+# --- Callback: Set Language (RU / EN) ---
+@dp.callback_query(F.data.in_(["btn_set_lang_ru", "btn_set_lang_en", "btn_toggle_lang", "btn_set_lang_ru_sub", "btn_set_lang_en_sub", "btn_toggle_lang_sub"]))
+async def handle_set_language(callback: types.CallbackQuery, bot: Bot):
     user_id = callback.from_user.id
     current_lang = db.get_user_language(user_id)
-    new_lang = "en" if current_lang == "ru" else "ru"
+
+    if callback.data in ("btn_set_lang_ru", "btn_set_lang_ru_sub"):
+        new_lang = "ru"
+    elif callback.data in ("btn_set_lang_en", "btn_set_lang_en_sub"):
+        new_lang = "en"
+    else:
+        new_lang = "en" if current_lang == "ru" else "ru"
+
     db.set_user_language(user_id, new_lang)
     is_admin = db.is_staff(user_id)
 
     toast = "Язык переключен на Русский 🇷🇺" if new_lang == "ru" else "Language switched to English 🇬🇧"
     await callback.answer(toast)
 
-    # 1. If toggled on the Subscription screen
-    if callback.data == "btn_toggle_lang_sub":
+    # 1. If on the Subscription screen
+    if "sub" in callback.data:
         sub_text = get_sub_required_text(new_lang)
         sub_kb = get_sub_inline_keyboard(new_lang)
         try:
@@ -471,10 +512,10 @@ async def handle_toggle_language(callback: types.CallbackQuery, bot: Bot):
                 pass
         return
 
-    # 2. Toggled on Main Menu
+    # 2. Main Menu
     username = callback.from_user.username or ""
-    first_name = callback.from_user.first_name or "Котик-Друг"
-    user_nick = f"@{username}" if username else first_name
+    first_name = callback.from_user.first_name or ""
+    user_nick = resolve_display_name(first_name, username, new_lang)
     welcome_text = get_welcome_text(user_nick, new_lang)
     inline_kb = get_main_inline_keyboard(new_lang, is_admin)
 
@@ -485,6 +526,18 @@ async def handle_toggle_language(callback: types.CallbackQuery, bot: Bot):
             await callback.message.edit_text(text=welcome_text, parse_mode=ParseMode.HTML, reply_markup=inline_kb)
         except Exception:
             pass
+
+    # Update Telegram chat menu button URL to match new language
+    try:
+        await bot.set_chat_menu_button(
+            chat_id=callback.message.chat.id,
+            menu_button=MenuButtonWebApp(
+                text="🐱 Kotik Store",
+                web_app=WebAppInfo(url=f"{WEBAPP_URL}?lang={new_lang}"),
+            ),
+        )
+    except Exception as e:
+        logger.warning(f"Could not update menu button: {e}")
 
     # Update persistent reply keyboard button language
     reply_kb = get_main_reply_keyboard(new_lang)
@@ -543,10 +596,10 @@ async def handle_admin(message: types.Message):
 async def handle_back_to_kotik(event: types.Message | types.CallbackQuery, bot: Bot):
     user = event.from_user
     username = user.username or ""
-    first_name = user.first_name or "Котик-Друг"
-    user_nick = f"@{username}" if username else first_name
-    is_admin = db.is_staff(user.id)
+    first_name = user.first_name or ""
     lang = db.get_user_language(user.id)
+    user_nick = resolve_display_name(first_name, username, lang)
+    is_admin = db.is_staff(user.id)
 
     # Check subscription first
     subscribed = await is_subscribed_to_channel(bot, user.id)
@@ -1098,6 +1151,36 @@ async def main():
     print(f"[*] Аватар канала: {CHANNEL_AVATAR_PATH}")
     print("[*] Платежные шлюзы: CryptoBot, 2328, Platega, Enot.io")
     print("==================================================")
+
+    # Configure Telegram bot name & descriptions for RU and EN
+    try:
+        await bot_instance.set_my_name("Kotik Store", language_code=None)
+        await bot_instance.set_my_name("Kotik Store", language_code="ru")
+        await bot_instance.set_my_name("Kotik Store", language_code="en")
+        await bot_instance.set_my_description(
+            "🐱 Kotik Store — Магазин подписок на лучшие мировые нейросети и цифровые сервисы:\n"
+            "• ChatGPT Plus (o1, GPT-4o, Canvas, DALL-E 3)\n"
+            "• Gemini Advanced (2M токенов + 2TB Google Drive)\n"
+            "• Claude 3.7 Sonnet Pro (Extended Thinking)\n"
+            "• Grok AI (X Premium+, FLUX)\n"
+            "• ElevenLabs Pro & CapCut Pro\n\n"
+            "⚡ Моментальная автовыдача 24/7 • 100% гарантия • Оплата картами РФ, СБП, CryptoBot и Enot.",
+            language_code="ru",
+        )
+        await bot_instance.set_my_description(
+            "🐱 Kotik Store — The ultimate marketplace for flagship AI & digital subscriptions:\n"
+            "• ChatGPT Plus (o1, GPT-4o, Canvas, DALL-E 3)\n"
+            "• Gemini Advanced (2M tokens + 2TB Google One)\n"
+            "• Claude 3.7 Sonnet Pro (Extended Thinking)\n"
+            "• Grok AI (X Premium+, FLUX)\n"
+            "• ElevenLabs Pro & CapCut Pro\n\n"
+            "⚡ Instant 24/7 auto-delivery • 100% warranty • International cards, Crypto & Telegram Pay.",
+            language_code="en",
+        )
+        await bot_instance.set_my_short_description("🐱 Kotik Store — Магазин нейросетей и подписок 24/7", language_code="ru")
+        await bot_instance.set_my_short_description("🐱 Kotik Store — AI Subscriptions & Digital Keys 24/7", language_code="en")
+    except Exception as e:
+        logger.warning(f"Could not set bot metadata: {e}")
 
     # Start background webhook server
     try:
