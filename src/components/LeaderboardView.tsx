@@ -1,13 +1,18 @@
 import React, { useState } from 'react';
 import { Trophy, Medal, Sparkles, Crown, Flame } from 'lucide-react';
 import type { LeaderboardPeriod, LeaderboardUser } from '../types';
+import type { Language } from '../utils/i18n';
 import { triggerHaptic } from '../utils/telegram';
 
 interface LeaderboardViewProps {
   leaderboardData: Record<string, LeaderboardUser[]>;
+  lang?: Language;
 }
 
-export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ leaderboardData }) => {
+export const LeaderboardView: React.FC<LeaderboardViewProps> = ({
+  leaderboardData,
+  lang = 'ru',
+}) => {
   const [period, setPeriod] = useState<LeaderboardPeriod>('7d');
 
   const users = leaderboardData[period] || [];
@@ -16,35 +21,39 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ leaderboardDat
   const top3 = users.find((u) => u.rank === 3);
   const others = users.filter((u) => u.rank > 3);
 
+  const tabs: { id: LeaderboardPeriod; label: string }[] = [
+    { id: '24h', label: lang === 'en' ? '24 Hours' : '24 часа' },
+    { id: '7d', label: lang === 'en' ? '7 Days' : '7 дней' },
+    { id: '30d', label: lang === 'en' ? '30 Days' : '30 дней' },
+    { id: 'all_time', label: lang === 'en' ? 'All Time' : 'Все время' },
+  ];
+
   return (
     <div className="space-y-5 animate-fade-in pb-12">
       {/* Title & Description */}
       <div className="text-center space-y-1">
         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 text-xs font-bold">
           <Trophy className="w-3.5 h-3.5" />
-          <span>Зал славы Kotik Store</span>
+          <span>{lang === 'en' ? 'Kotik Store Hall of Fame' : 'Зал славы Kotik Store'}</span>
         </div>
         <h2 className="text-lg font-black text-white tracking-wide">
-          Топ активных покупателей
+          {lang === 'en' ? 'Top Active Customers' : 'Топ активных покупателей'}
         </h2>
         <p className="text-xs text-white/50 max-w-xs mx-auto">
-          Совершайте покупки, попадайте в топ и получайте бонусные $ на баланс и статус Kotik VIP!
+          {lang === 'en'
+            ? 'Make purchases, climb the leaderboard and win bonus $ and Kotik VIP status!'
+            : 'Совершайте покупки, попадайте в топ и получайте бонусные $ на баланс и статус Kotik VIP!'}
         </p>
       </div>
 
-      {/* Period Switcher Tabs (exact ZykoStore style) */}
+      {/* Period Switcher Tabs */}
       <div className="flex p-1 rounded-2xl bg-white/5 border border-white/10 gap-1">
-        {[
-          { id: '24h', label: '24 часа' },
-          { id: '7d', label: '7 дней' },
-          { id: '30d', label: '30 дней' },
-          { id: 'all_time', label: 'Все время' },
-        ].map((tab) => (
+        {tabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => {
               triggerHaptic('selection');
-              setPeriod(tab.id as LeaderboardPeriod);
+              setPeriod(tab.id);
             }}
             className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all ${
               period === tab.id
@@ -64,11 +73,19 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ leaderboardDat
         </div>
         <div className="text-xs space-y-0.5">
           <div className="font-extrabold text-white flex items-center gap-1.5">
-            <span>Призовой фонд месяца: $10.00</span>
+            <span>{lang === 'en' ? 'Monthly Prize Pool: $10.00' : 'Призовой фонд месяца: $10.00'}</span>
             <Sparkles className="w-3.5 h-3.5 text-yellow-400" />
           </div>
           <p className="text-white/80 text-[11px]">
-            Победитель месяца в ТОПе получает <b className="text-yellow-400">+$10.00 на баланс</b> и статус <b className="text-fuchsia-300">«Премиум Котик» 👑</b>!
+            {lang === 'en' ? (
+              <>
+                The monthly #1 winner gets <b className="text-yellow-400">+$10.00 balance</b> and exclusive rank <b className="text-fuchsia-300">«Premium Kotik» 👑</b>!
+              </>
+            ) : (
+              <>
+                Победитель месяца в ТОПе получает <b className="text-yellow-400">+$10.00 на баланс</b> и статус <b className="text-fuchsia-300">«Премиум Котик» 👑</b>!
+              </>
+            )}
           </p>
         </div>
       </div>
@@ -79,13 +96,15 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ leaderboardDat
             <Trophy className="w-7 h-7" />
           </div>
           <h3 className="text-sm font-bold text-white mb-1">
-            Рейтинг пока формируется
+            {lang === 'en' ? 'Rankings are being formed' : 'Рейтинг пока формируется'}
           </h3>
           <p className="text-xs text-white/50 max-w-[280px] mb-2">
-            В этом периоде пока нет завершенных заказов. Совершите первую покупку или пригласите друга, чтобы занять 1-е место!
+            {lang === 'en'
+              ? 'No completed orders in this period yet. Make your first purchase or invite a friend to take #1 place!'
+              : 'В этом периоде пока нет завершенных заказов. Совершите первую покупку или пригласите друга, чтобы занять 1-е место!'}
           </p>
           <div className="text-[11px] font-bold text-yellow-300 bg-yellow-400/10 border border-yellow-400/20 px-3 py-1.5 rounded-xl">
-            🏆 Награда ТОП-1: $10.00 + Премиум Котик 👑
+            {lang === 'en' ? '🏆 TOP-1 Reward: $10.00 + Premium Kotik 👑' : '🏆 Награда ТОП-1: $10.00 + Премиум Котик 👑'}
           </div>
         </div>
       ) : (
@@ -139,7 +158,9 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ leaderboardDat
                 </span>
                 <div className="w-full mt-2 h-28 rounded-t-2xl bg-gradient-to-t from-yellow-500/25 to-yellow-500/10 border-t-2 border-yellow-400/50 flex flex-col items-center justify-center shadow-lg shadow-yellow-500/10">
                   <Trophy className="w-7 h-7 text-yellow-400 drop-shadow-[0_0_8px_rgba(250,204,21,0.6)]" />
-                  <span className="text-[10px] font-bold text-yellow-300 mt-1">ТОП 1</span>
+                  <span className="text-[10px] font-bold text-yellow-300 mt-1">
+                    {lang === 'en' ? 'TOP 1' : 'ТОП 1'}
+                  </span>
                 </div>
               </div>
             )}
@@ -174,8 +195,8 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ leaderboardDat
           {others.length > 0 && (
             <div className="rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-md overflow-hidden">
               <div className="p-3 border-b border-white/10 text-xs font-bold text-white/50 flex items-center justify-between">
-                <span>Рейтинг участников</span>
-                <span>Всего покупок</span>
+                <span>{lang === 'en' ? 'Participants Ranking' : 'Рейтинг участников'}</span>
+                <span>{lang === 'en' ? 'Total Purchases' : 'Всего покупок'}</span>
               </div>
               <div className="divide-y divide-white/5">
                 {others.map((u) => (
@@ -205,7 +226,7 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ leaderboardDat
                           <span>@{u.username}</span>
                           <span className="flex items-center gap-0.5 text-amber-400">
                             <Flame className="w-3 h-3" />
-                            <span>{u.streak} дн.</span>
+                            <span>{u.streak} {lang === 'en' ? 'd.' : 'дн.'}</span>
                           </span>
                         </div>
                       </div>
@@ -216,7 +237,7 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ leaderboardDat
                         ${u.spent.toFixed(2)}
                       </div>
                       <div className="text-[10px] text-white/40">
-                        {u.ordersCount} заказов
+                        {u.ordersCount} {lang === 'en' ? 'orders' : 'заказов'}
                       </div>
                     </div>
                   </div>

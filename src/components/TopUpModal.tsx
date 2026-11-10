@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import type { PaymentMethod } from '../types';
+import type { Language } from '../utils/i18n';
 import { haptic } from '../utils/telegram';
 
 interface TopUpModalProps {
@@ -20,6 +21,7 @@ interface TopUpModalProps {
   onAddBalance: (amount: number) => void;
   onClose: () => void;
   x2PromotionActive?: boolean;
+  lang?: Language;
 }
 
 export const TopUpModal: React.FC<TopUpModalProps> = ({
@@ -27,7 +29,9 @@ export const TopUpModal: React.FC<TopUpModalProps> = ({
   onAddBalance,
   onClose,
   x2PromotionActive = false,
+  lang = 'ru',
 }) => {
+  const isEn = lang === 'en';
   const [amount, setAmount] = useState<number>(10);
   const [customInput, setCustomInput] = useState<string>('10');
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod>('card_sbp');
@@ -39,35 +43,35 @@ export const TopUpModal: React.FC<TopUpModalProps> = ({
     {
       id: 'cryptobot' as PaymentMethod,
       name: 'CryptoBot (USDT, TON, BTC)',
-      badge: '0% комиссия',
+      badge: isEn ? '0% fee' : '0% комиссия',
       icon: <Coins className="w-4 h-4 text-emerald-400" />,
       rate: '1.0 USDT / $',
     },
     {
       id: '2328' as PaymentMethod,
-      name: 'Бот 2328 (Telegram Pay / Карты)',
-      badge: 'Автовыдача',
+      name: isEn ? 'Bot 2328 (Telegram Pay / Cards)' : 'Бот 2328 (Telegram Pay / Карты)',
+      badge: isEn ? 'Auto Delivery' : 'Автовыдача',
       icon: <Zap className="w-4 h-4 text-amber-400" />,
       rate: '~98 ₽ / $',
     },
     {
       id: 'platega' as PaymentMethod,
-      name: 'Platega (СБП, МИР, T-Pay, Сбер)',
-      badge: 'Без комиссии',
+      name: isEn ? 'Platega (Cards / SBP)' : 'Platega (СБП, МИР, T-Pay, Сбер)',
+      badge: isEn ? 'No fee' : 'Без комиссии',
       icon: <CreditCard className="w-4 h-4 text-cyan-400" />,
       rate: '~98 ₽ / $',
     },
     {
       id: 'enot' as PaymentMethod,
-      name: 'Enot.io (Карты СНГ, ЮMoney)',
-      badge: 'Моментально',
+      name: isEn ? 'Enot.io (CIS Cards / E-Wallets)' : 'Enot.io (Карты СНГ, ЮMoney)',
+      badge: isEn ? 'Instant' : 'Моментально',
       icon: <Sparkles className="w-4 h-4 text-fuchsia-400" />,
       rate: '~100 ₽ / $',
     },
     {
       id: 'stars' as PaymentMethod,
       name: 'Telegram Stars ⭐',
-      badge: 'В Telegram',
+      badge: isEn ? 'Telegram' : 'В Telegram',
       icon: <Star className="w-4 h-4 text-yellow-300 fill-yellow-400" />,
       rate: '75 ⭐ / $',
     },
@@ -141,10 +145,10 @@ export const TopUpModal: React.FC<TopUpModalProps> = ({
             </div>
             <div>
               <h2 className="text-base font-bold text-white tracking-tight">
-                Пополнение баланса
+                {isEn ? 'Top Up Balance' : 'Пополнение баланса'}
               </h2>
               <p className="text-[11px] text-white/50">
-                Текущий баланс:{' '}
+                {isEn ? 'Current balance:' : 'Текущий баланс:'}{' '}
                 <span className="text-pink-300 font-mono font-bold">
                   ${currentBalance.toFixed(2)}
                 </span>
@@ -174,10 +178,10 @@ export const TopUpModal: React.FC<TopUpModalProps> = ({
               </div>
               <div>
                 <span className="text-xs font-black text-amber-300 block uppercase tracking-wider font-heading">
-                  АКЦИЯ X2 АКТИВНА!
+                  {isEn ? 'X2 BONUS IS ACTIVE!' : 'АКЦИЯ X2 АКТИВНА!'}
                 </span>
                 <span className="text-[10px] text-white/70">
-                  Все пополнения удваиваются на баланс
+                  {isEn ? 'All deposits are doubled into your balance' : 'Все пополнения удваиваются на баланс'}
                 </span>
               </div>
             </div>
@@ -191,11 +195,11 @@ export const TopUpModal: React.FC<TopUpModalProps> = ({
         <div className="mb-4">
           <div className="flex items-center justify-between mb-2">
             <label className="text-xs font-bold text-white/70">
-              Сумма пополнения (USD):
+              {isEn ? 'Deposit Amount (USD):' : 'Сумма пополнения (USD):'}
             </label>
             {x2PromotionActive && (
               <span className="text-[10px] text-amber-300 font-mono font-bold">
-                Начислим: ${finalCreditAmount.toFixed(2)} 🔥
+                {isEn ? 'You receive:' : 'Начислим:'} ${finalCreditAmount.toFixed(2)} 🔥
               </span>
             )}
           </div>
@@ -229,7 +233,7 @@ export const TopUpModal: React.FC<TopUpModalProps> = ({
               value={customInput}
               onChange={(e) => handleCustomInputChange(e.target.value)}
               className="w-full pl-8 pr-16 py-2.5 rounded-xl bg-black/40 border border-white/10 text-white font-mono font-bold text-sm focus:outline-none focus:border-pink-500 focus:ring-1 focus:ring-pink-500"
-              placeholder="Другая сумма"
+              placeholder={isEn ? 'Other amount' : 'Другая сумма'}
             />
             <span className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-[11px] text-white/40">
               USD
@@ -237,7 +241,7 @@ export const TopUpModal: React.FC<TopUpModalProps> = ({
           </div>
 
           <div className="mt-1.5 text-[11px] text-white/40 flex items-center justify-between px-1">
-            <span>К оплате примерно:</span>
+            <span>{isEn ? 'Estimated charge:' : 'К оплате примерно:'}</span>
             <span className="text-cyan-300 font-mono font-medium">
               ~{(amount * 96).toLocaleString('ru-RU')} ₽ / {amount} USDT
             </span>
@@ -247,7 +251,7 @@ export const TopUpModal: React.FC<TopUpModalProps> = ({
         {/* Method Selector */}
         <div className="mb-5">
           <label className="block text-xs font-bold text-white/70 mb-2">
-            Способ пополнения:
+            {isEn ? 'Payment Method:' : 'Способ пополнения:'}
           </label>
           <div className="space-y-2">
             {methods.map((m) => {
@@ -307,14 +311,18 @@ export const TopUpModal: React.FC<TopUpModalProps> = ({
           {isProcessing ? (
             <>
               <Loader2 className="w-4 h-4 animate-spin text-white" />
-              <span>Пополнение...</span>
+              <span>{isEn ? 'Processing...' : 'Пополнение...'}</span>
             </>
           ) : (
             <>
               <Sparkles className="w-4 h-4" />
               <span>
                 {x2PromotionActive
-                  ? `Пополнить на $${amount.toFixed(2)} (получить $${finalCreditAmount.toFixed(2)} 🔥)`
+                  ? isEn
+                    ? `Top Up $${amount.toFixed(2)} (Receive $${finalCreditAmount.toFixed(2)} 🔥)`
+                    : `Пополнить на $${amount.toFixed(2)} (получить $${finalCreditAmount.toFixed(2)} 🔥)`
+                  : isEn
+                  ? `Top Up $${amount.toFixed(2)}`
                   : `Пополнить баланс на $${amount.toFixed(2)}`}
               </span>
             </>

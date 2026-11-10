@@ -53,7 +53,7 @@ import type {
   StaffMember,
 } from './types';
 import { initTelegramApp, getTelegramUser, triggerHaptic, isStaffUser } from './utils/telegram';
-import { getInitialLanguage, type Language } from './utils/i18n';
+import { getInitialLanguage, getLocalizedProduct, type Language } from './utils/i18n';
 import { Heart, ShoppingBag } from 'lucide-react';
 
 // Storage migration to clean all legacy mock data to fresh 0 baseline
@@ -292,9 +292,14 @@ export function App() {
     );
   };
 
+  // Localized products based on current active language
+  const localizedProducts = useMemo(() => {
+    return products.map((p) => getLocalizedProduct(p, lang));
+  }, [products, lang]);
+
   // Filtered Products
   const filteredProducts = useMemo(() => {
-    return products.filter((item) => {
+    return localizedProducts.filter((item) => {
       const matchesCategory =
         selectedCategory === 'all' ||
         item.categoryId === selectedCategory ||
@@ -309,11 +314,11 @@ export function App() {
 
       return matchesCategory && matchesSearch;
     });
-  }, [products, searchQuery, selectedCategory]);
+  }, [localizedProducts, searchQuery, selectedCategory]);
 
   const favoriteProducts = useMemo(() => {
-    return products.filter((p) => favorites.includes(p.id));
-  }, [products, favorites]);
+    return localizedProducts.filter((p) => favorites.includes(p.id));
+  }, [localizedProducts, favorites]);
 
   // Handlers for checkout flow
   const handleProceedToCheckout = (config: {
@@ -519,6 +524,7 @@ export function App() {
             <MySubscriptions
               orders={orders}
               onOpenStore={() => setActiveView('shop')}
+              lang={lang}
             />
           </div>
         )}
@@ -529,6 +535,7 @@ export function App() {
             <ReviewsView
               reviews={reviews}
               onOpenReviewModal={() => setIsReviewModalOpen(true)}
+              lang={lang}
             />
           </div>
         )}
@@ -536,7 +543,7 @@ export function App() {
         {/* VIEW: Leaderboard (Топ) */}
         {activeView === 'leaderboard' && (
           <div className="pt-2 animate-fade-in">
-            <LeaderboardView leaderboardData={leaderboard} />
+            <LeaderboardView leaderboardData={leaderboard} lang={lang} />
           </div>
         )}
 
@@ -547,10 +554,12 @@ export function App() {
               <div>
                 <h2 className="text-base font-extrabold text-white flex items-center gap-2">
                   <Heart className="w-5 h-5 text-pink-500 fill-pink-500" />
-                  <span>Избранные нейросети</span>
+                  <span>{lang === 'en' ? 'Favorite AI Tools' : 'Избранные нейросети'}</span>
                 </h2>
                 <p className="text-xs text-white/50">
-                  Сохраненные подписки для быстрого доступа
+                  {lang === 'en'
+                    ? 'Saved subscriptions for quick access'
+                    : 'Сохраненные подписки для быстрого доступа'}
                 </p>
               </div>
               <span className="text-xs font-mono font-bold px-2 py-0.5 rounded-full bg-pink-500/20 text-pink-300 border border-pink-500/30">
@@ -567,6 +576,7 @@ export function App() {
                     isFavorite={true}
                     onSelect={() => setSelectedProduct(product)}
                     onToggleFavorite={toggleFavorite}
+                    lang={lang}
                   />
                 ))}
               </div>
@@ -576,10 +586,12 @@ export function App() {
                   <Heart className="w-7 h-7" />
                 </div>
                 <h3 className="text-sm font-bold text-white mb-1">
-                  Список избранного пуст
+                  {lang === 'en' ? 'Wishlist is empty' : 'Список избранного пуст'}
                 </h3>
                 <p className="text-xs text-white/50 max-w-[240px] mb-4">
-                  Нажмите на сердечко на карточке товара в витрине, чтобы сохранить его сюда.
+                  {lang === 'en'
+                    ? 'Click on the heart icon on any product card in the storefront to save it here.'
+                    : 'Нажмите на сердечко на карточке товара в витрине, чтобы сохранить его сюда.'}
                 </p>
                 <button
                   onClick={() => {
@@ -589,7 +601,7 @@ export function App() {
                   className="px-4 py-2 rounded-xl bg-pink-500 text-white text-xs font-bold shadow flex items-center gap-1.5"
                 >
                   <ShoppingBag className="w-4 h-4" />
-                  <span>Перейти к покупкам</span>
+                  <span>{lang === 'en' ? 'Browse Catalog' : 'Перейти к покупкам'}</span>
                 </button>
               </div>
             )}
@@ -611,6 +623,7 @@ export function App() {
               x2PromotionActive={metrics.x2PromotionActive}
               isStaff={isStaff}
               onOpenApiDocs={() => setIsApiDocsOpen(true)}
+              lang={lang}
             />
           </div>
         )}
@@ -643,6 +656,7 @@ export function App() {
         onOpenTopUp={() => setIsTopUpOpen(true)}
         onClose={() => setCheckoutConfig(null)}
         onOrderSuccess={handleOrderSuccess}
+        lang={lang}
       />
 
       {/* Balance Top-Up Modal (with X2 support) */}
@@ -652,6 +666,7 @@ export function App() {
           onAddBalance={handleAddBalance}
           onClose={() => setIsTopUpOpen(false)}
           x2PromotionActive={metrics.x2PromotionActive}
+          lang={lang}
         />
       )}
 
@@ -663,6 +678,7 @@ export function App() {
           setSuccessOrder(null);
           setActiveView('orders');
         }}
+        lang={lang}
       />
 
       {/* Review Creation Modal */}
@@ -678,6 +694,7 @@ export function App() {
         isOpen={activePolicy !== null}
         type={activePolicy}
         onClose={() => setActivePolicy(null)}
+        lang={lang}
       />
 
       {/* Admin Auth Modal (Master Passcode) */}

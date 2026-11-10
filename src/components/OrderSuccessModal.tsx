@@ -7,19 +7,23 @@ import {
   BookOpen,
 } from 'lucide-react';
 import type { OrderItem } from '../types';
+import type { Language } from '../utils/i18n';
 import { haptic } from '../utils/telegram';
 
 interface OrderSuccessModalProps {
   order: OrderItem | null;
   onClose: () => void;
   onGoToSubscriptions: () => void;
+  lang?: Language;
 }
 
 export const OrderSuccessModal: React.FC<OrderSuccessModalProps> = ({
   order,
   onClose,
   onGoToSubscriptions,
+  lang = 'ru',
 }) => {
+  const isEn = lang === 'en';
   const [copied, setCopied] = useState<boolean>(false);
 
   if (!order) return null;
@@ -57,13 +61,13 @@ export const OrderSuccessModal: React.FC<OrderSuccessModalProps> = ({
         {/* Title */}
         <div className="text-center mb-4">
           <span className="text-[10px] font-bold text-pink-400 uppercase tracking-widest block mb-0.5">
-            Заказ #{order.id} оформлен
+            {isEn ? `Order #${order.id} Confirmed` : `Заказ #${order.id} оформлен`}
           </span>
           <h3 className="text-lg font-black text-white">
-            Поздравляем с покупкой! 🎉
+            {isEn ? 'Congratulations on your purchase! 🎉' : 'Поздравляем с покупкой! 🎉'}
           </h3>
           <p className="text-xs text-white/60 mt-1">
-            {order.productTitle} — {order.optionName} ({order.months} мес.)
+            {order.productTitle} — {order.optionName} ({order.months} {isEn ? 'mo.' : 'мес.'})
           </p>
         </div>
 
@@ -72,7 +76,7 @@ export const OrderSuccessModal: React.FC<OrderSuccessModalProps> = ({
           <div className="mb-4 p-3 rounded-2xl bg-white/[0.04] border border-white/10 relative">
             <div className="flex items-center justify-between mb-1.5">
               <span className="text-[10px] font-bold text-white/50 uppercase tracking-wider">
-                Данные для доступа:
+                {isEn ? 'Access Credentials:' : 'Данные для доступа:'}
               </span>
               <button
                 onClick={handleCopy}
@@ -81,12 +85,12 @@ export const OrderSuccessModal: React.FC<OrderSuccessModalProps> = ({
                 {copied ? (
                   <>
                     <Check className="w-3.5 h-3.5 text-emerald-400" />
-                    <span className="text-emerald-400">Скопировано!</span>
+                    <span className="text-emerald-400">{isEn ? 'Copied!' : 'Скопировано!'}</span>
                   </>
                 ) : (
                   <>
                     <Copy className="w-3.5 h-3.5" />
-                    <span>Скопировать</span>
+                    <span>{isEn ? 'Copy' : 'Скопировать'}</span>
                   </>
                 )}
               </button>
@@ -102,7 +106,7 @@ export const OrderSuccessModal: React.FC<OrderSuccessModalProps> = ({
         <div className="mb-4 space-y-1.5 text-[11px] text-white/70">
           <div className="flex items-center gap-1 text-white/50 text-[10px] uppercase font-bold tracking-wider">
             <BookOpen className="w-3 h-3" />
-            <span>Инструкция:</span>
+            <span>{isEn ? 'Instructions:' : 'Инструкция:'}</span>
           </div>
           {order.instructions.map((inst, i) => (
             <div key={i} className="flex items-start gap-1.5">
@@ -122,7 +126,7 @@ export const OrderSuccessModal: React.FC<OrderSuccessModalProps> = ({
             type="button"
             className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-pink-500 via-fuchsia-500 to-purple-600 hover:from-pink-400 hover:to-purple-500 active:scale-[0.98] text-white font-bold text-xs shadow-lg flex items-center justify-center gap-2 transition-all cursor-pointer"
           >
-            <span>Перейти в Мои подписки</span>
+            <span>{isEn ? 'Go to My Subscriptions' : 'Перейти в Мои подписки'}</span>
             <ArrowRight className="w-4 h-4" />
           </button>
 
@@ -134,7 +138,7 @@ export const OrderSuccessModal: React.FC<OrderSuccessModalProps> = ({
             type="button"
             className="w-full py-2.5 px-4 rounded-xl bg-white/5 hover:bg-white/10 active:scale-[0.98] text-white/60 hover:text-white font-medium text-xs transition-colors"
           >
-            Закрыть
+            {isEn ? 'Close' : 'Закрыть'}
           </button>
         </div>
       </div>

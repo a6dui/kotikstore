@@ -10,17 +10,21 @@ import {
   Sparkles,
 } from 'lucide-react';
 import type { OrderItem } from '../types';
+import type { Language } from '../utils/i18n';
 import { haptic } from '../utils/telegram';
 
 interface MySubscriptionsProps {
   orders: OrderItem[];
   onOpenStore: () => void;
+  lang?: Language;
 }
 
 export const MySubscriptions: React.FC<MySubscriptionsProps> = ({
   orders,
   onOpenStore,
+  lang = 'ru',
 }) => {
+  const isEn = lang === 'en';
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [openAccordionId, setOpenAccordionId] = useState<string | null>(
     orders.length > 0 ? orders[0].id : null
@@ -45,10 +49,12 @@ export const MySubscriptions: React.FC<MySubscriptionsProps> = ({
           <Key className="w-8 h-8" />
         </div>
         <h3 className="text-base font-bold text-white mb-1">
-          У вас пока нет активных подписок
+          {isEn ? 'No active subscriptions yet' : 'У вас пока нет активных подписок'}
         </h3>
         <p className="text-xs text-white/50 max-w-[260px] mb-5">
-          Выберите нужную нейросеть на витрине — выдадим доступ за 60 секунд!
+          {isEn
+            ? 'Choose an AI subscription from the store — instant access in 60s!'
+            : 'Выберите нужную нейросеть на витрине — выдадим доступ за 60 секунд!'}
         </p>
         <button
           onClick={() => {
@@ -57,7 +63,7 @@ export const MySubscriptions: React.FC<MySubscriptionsProps> = ({
           }}
           className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-pink-500 to-purple-600 text-white text-xs font-bold shadow-lg"
         >
-          Перейти на витрину
+          {isEn ? 'Browse Storefront' : 'Перейти на витрину'}
         </button>
       </div>
     );
@@ -70,13 +76,13 @@ export const MySubscriptions: React.FC<MySubscriptionsProps> = ({
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-sm font-bold text-white flex items-center gap-1.5">
-              <span>Мои подписки</span>
+              <span>{isEn ? 'My Subscriptions' : 'Мои подписки'}</span>
               <span className="text-[10px] px-2 py-0.5 rounded-full bg-pink-500/20 text-pink-300 border border-pink-500/30 font-mono">
-                {orders.length} АКТИВНЫХ
+                {orders.length} {isEn ? 'ACTIVE' : 'АКТИВНЫХ'}
               </span>
             </h2>
             <p className="text-[11px] text-white/50 mt-0.5">
-              Все выданные доступы и ключи активации хранятся здесь.
+              {isEn ? 'All issued credentials and activation keys are stored here.' : 'Все выданные доступы и ключи активации хранятся здесь.'}
             </p>
           </div>
           <div className="w-9 h-9 rounded-xl bg-pink-500/20 text-pink-400 flex items-center justify-center shrink-0">
@@ -108,11 +114,11 @@ export const MySubscriptions: React.FC<MySubscriptionsProps> = ({
                     </h3>
                     <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                      Активна
+                      {isEn ? 'Active' : 'Активна'}
                     </span>
                   </div>
                   <p className="text-[11px] text-white/50 mt-0.5">
-                    {order.optionName} • {order.months} мес.
+                    {order.optionName} • {order.months} {isEn ? 'mo.' : 'мес.'}
                   </p>
                 </div>
 
@@ -122,7 +128,7 @@ export const MySubscriptions: React.FC<MySubscriptionsProps> = ({
                   </div>
                   <div className="text-[10px] text-white/40 flex items-center justify-end gap-1 mt-0.5">
                     <Clock className="w-3 h-3 text-white/40" />
-                    <span>до {order.expiresDate}</span>
+                    <span>{isEn ? 'until' : 'до'} {order.expiresDate}</span>
                   </div>
                 </div>
               </div>
@@ -132,7 +138,7 @@ export const MySubscriptions: React.FC<MySubscriptionsProps> = ({
                 <div className="my-3 p-3 rounded-xl bg-black/50 border border-white/10 relative">
                   <div className="flex items-center justify-between mb-1.5">
                     <span className="text-[10px] font-bold text-white/40 uppercase tracking-wider">
-                      Данные аккаунта:
+                      {isEn ? 'Account Credentials:' : 'Данные аккаунта:'}
                     </span>
                     <button
                       onClick={() => handleCopy(order.id, order.loginData || '')}
@@ -141,12 +147,12 @@ export const MySubscriptions: React.FC<MySubscriptionsProps> = ({
                       {isCopied ? (
                         <>
                           <Check className="w-3 h-3 text-emerald-400" />
-                          <span className="text-emerald-400">Скопировано</span>
+                          <span className="text-emerald-400">{isEn ? 'Copied' : 'Скопировано'}</span>
                         </>
                       ) : (
                         <>
                           <Copy className="w-3 h-3" />
-                          <span>Скопировать данные</span>
+                          <span>{isEn ? 'Copy data' : 'Скопировать данные'}</span>
                         </>
                       )}
                     </button>
@@ -164,7 +170,7 @@ export const MySubscriptions: React.FC<MySubscriptionsProps> = ({
                 onClick={() => toggleAccordion(order.id)}
                 className="w-full flex items-center justify-between py-2 text-xs font-semibold text-white/70 hover:text-white border-t border-white/5 mt-1"
               >
-                <span>Инструкция по использованию</span>
+                <span>{isEn ? 'Usage Instructions' : 'Инструкция по использованию'}</span>
                 {isOpen ? (
                   <ChevronUp className="w-4 h-4 text-white/50" />
                 ) : (
@@ -184,7 +190,7 @@ export const MySubscriptions: React.FC<MySubscriptionsProps> = ({
                   <div className="pt-2 flex items-center justify-between">
                     <span className="text-[10px] text-emerald-400 flex items-center gap-1">
                       <ShieldCheck className="w-3.5 h-3.5" />
-                      Подписка защищена гарантией Kotik Store
+                      {isEn ? 'Protected by Kotik Store Warranty' : 'Подписка защищена гарантией Kotik Store'}
                     </span>
                     <button
                       onClick={() => {
@@ -193,7 +199,7 @@ export const MySubscriptions: React.FC<MySubscriptionsProps> = ({
                       }}
                       className="text-[11px] font-bold text-pink-400 hover:underline"
                     >
-                      Продлить
+                      {isEn ? 'Renew' : 'Продлить'}
                     </button>
                   </div>
                 </div>

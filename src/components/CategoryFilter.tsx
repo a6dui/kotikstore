@@ -160,6 +160,8 @@ export const CategoryFilter: React.FC<CategoryFilterProps> = ({
                       ? 'Voice & Video'
                       : cat.id === 'vpn_security'
                       ? 'VPN & Security'
+                      : cat.id === 'gaming_tools'
+                      ? 'Gaming & Software'
                       : cat.name
                     : cat.name}
                 </span>

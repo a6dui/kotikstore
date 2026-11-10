@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import type { Product, ProductOption, DurationOption, PaymentMethod, OrderItem } from '../types';
+import type { Language } from '../utils/i18n';
 import { BrandIconRenderer } from './BrandIcons';
 import { haptic } from '../utils/telegram';
 
@@ -31,6 +32,7 @@ interface CheckoutModalProps {
   onOpenTopUp: () => void;
   onClose: () => void;
   onOrderSuccess: (order: OrderItem) => void;
+  lang?: Language;
 }
 
 export const CheckoutModal: React.FC<CheckoutModalProps> = ({
@@ -40,7 +42,9 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   onOpenTopUp,
   onClose,
   onOrderSuccess,
+  lang = 'ru',
 }) => {
+  const isEn = lang === 'en';
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod>('balance');
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string>('');
@@ -59,12 +63,25 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   }[] = [
     {
       id: 'balance',
-      name: `Баланс магазина ($${userBalance.toFixed(2)})`,
-      badge: userBalance >= totalPrice ? 'Хватает' : 'Недостаточно',
+      name: isEn
+        ? `Store Balance ($${userBalance.toFixed(2)})`
+        : `Баланс магазина ($${userBalance.toFixed(2)})`,
+      badge:
+        userBalance >= totalPrice
+          ? isEn
+            ? 'Sufficient'
+            : 'Хватает'
+          : isEn
+          ? 'Insufficient'
+          : 'Недостаточно',
       icon: <Wallet className="w-5 h-5 text-pink-400" />,
       description:
         userBalance >= totalPrice
-          ? 'Мгновенное списание в 1 клик без комиссий'
+          ? isEn
+            ? 'Instant 1-click debit without fees'
+            : 'Мгновенное списание в 1 клик без комиссий'
+          : isEn
+          ? `Need +$${(totalPrice - userBalance).toFixed(2)}. Click to top up`
           : `Не хватает $${(totalPrice - userBalance).toFixed(2)}. Нажмите, чтобы пополнить`,
       badgeColor:
         userBalance >= totalPrice
@@ -74,41 +91,51 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     {
       id: 'cryptobot',
       name: 'CryptoBot (USDT / TON / BTC)',
-      badge: '0% комиссия',
-      icon: <Coins className="w-5 h-5 text-emerald-400" />,
-      description: 'Оплата в Telegram через @CryptoBot (TON, USDT TRC20, BTC)',
+      badge: isEn ? '0% fee' : '0% комиссия',
+      icon: <Coins className="w-4 h-4 text-emerald-400" />,
+      description: isEn
+        ? 'Pay via @CryptoBot (TON, USDT TRC20, BTC)'
+        : 'Оплата в Telegram через @CryptoBot (TON, USDT TRC20, BTC)',
       badgeColor: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
     },
     {
       id: '2328',
-      name: 'Бот 2328 (Telegram Pay / SBP)',
-      badge: 'Автовыдача',
-      icon: <Zap className="w-5 h-5 text-amber-400" />,
-      description: 'Оплата картами РФ, СБП и через Telegram-инвойсы',
+      name: isEn ? 'Bot 2328 (Telegram Pay / Cards)' : 'Бот 2328 (Telegram Pay / SBP)',
+      badge: isEn ? 'Auto Delivery' : 'Автовыдача',
+      icon: <Zap className="w-4 h-4 text-amber-400" />,
+      description: isEn
+        ? 'Pay via Russian cards, Faster Payments & Telegram invoices'
+        : 'Оплата картами РФ, СБП и через Telegram-инвойсы',
       badgeColor: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
     },
     {
       id: 'platega',
-      name: 'Platega (СБП, Карты РФ, T-Pay)',
-      badge: 'Без комиссии',
-      icon: <CreditCard className="w-5 h-5 text-cyan-400" />,
-      description: 'Прямой перевод по СБП или банковской карте МИР',
+      name: isEn ? 'Platega (Cards / SBP)' : 'Platega (СБП, Карты РФ, T-Pay)',
+      badge: isEn ? 'No fee' : 'Без комиссии',
+      icon: <CreditCard className="w-4 h-4 text-cyan-400" />,
+      description: isEn
+        ? 'Direct bank transfer or card payment'
+        : 'Прямой перевод по СБП или банковской карте МИР',
       badgeColor: 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30',
     },
     {
       id: 'enot',
-      name: 'Enot.io (Карты СНГ, ЮMoney)',
-      badge: 'Моментально',
-      icon: <Sparkles className="w-5 h-5 text-fuchsia-400" />,
-      description: 'Оплата банковскими картами СНГ, ЮMoney и кошельками',
+      name: isEn ? 'Enot.io (CIS Cards / E-Wallets)' : 'Enot.io (Карты СНГ, ЮMoney)',
+      badge: isEn ? 'Instant' : 'Моментально',
+      icon: <Sparkles className="w-4 h-4 text-fuchsia-400" />,
+      description: isEn
+        ? 'CIS bank cards and digital wallets'
+        : 'Оплата банковскими картами СНГ, ЮMoney и кошельками',
       badgeColor: 'bg-fuchsia-500/20 text-fuchsia-400 border-fuchsia-500/30',
     },
     {
       id: 'stars',
       name: 'Telegram Stars ⭐',
-      badge: 'Официально',
-      icon: <Star className="w-5 h-5 text-yellow-300 fill-yellow-400" />,
-      description: 'Списание звёзд Telegram напрямую со счёта аккаунта',
+      badge: isEn ? 'Official' : 'Официально',
+      icon: <Star className="w-4 h-4 text-yellow-300 fill-yellow-400" />,
+      description: isEn
+        ? 'Debit stars directly from your Telegram account'
+        : 'Списание звёзд Telegram напрямую со счёта аккаунта',
       badgeColor: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
     },
   ];
@@ -128,7 +155,11 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     if (selectedMethod === 'balance') {
       if (userBalance < totalPrice) {
         haptic.warning();
-        setErrorMsg('Недостаточно средств на балансе. Пополните счёт.');
+        setErrorMsg(
+          isEn
+            ? 'Insufficient funds on balance. Please top up your account.'
+            : 'Недостаточно средств на балансе. Пополните счёт.'
+        );
         return;
       }
     }
@@ -174,23 +205,41 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         optionName: option.name,
         months: duration.months,
         totalPrice,
-        date: now.toLocaleDateString('ru-RU'),
-        expiresDate: expires.toLocaleDateString('ru-RU'),
+        date: now.toLocaleDateString(isEn ? 'en-US' : 'ru-RU'),
+        expiresDate: expires.toLocaleDateString(isEn ? 'en-US' : 'ru-RU'),
         status: 'active',
         loginData: option.isPersonal
-          ? `Активация на контакты: ${contact || 'Указанный профиль'}\nКлюч верификации: ${generatedKey}`
-          : `Логин: kotik_${product.id}_${Math.floor(Math.random() * 899 + 100)}@kotikstore.ai\nПароль: KotikPass#${Math.floor(Math.random() * 8999 + 1000)}\nКод доступа: ${generatedKey}`,
-        instructions: [
-          'Авторизуйтесь на официальном сайте сервиса с полученными данными.',
-          'В случае личного подключения инвайт отправлен на указанную почту/профиль.',
-          'Если потребуется код 2FA — напишите саппорту @Zykolandstore, выдача 24/7.',
-        ],
+          ? (isEn
+              ? `Account connected to: ${contact || 'Telegram Profile'}\nVerification Key: ${generatedKey}`
+              : `Активация на контакты: ${contact || 'Указанный профиль'}\nКлюч верификации: ${generatedKey}`)
+          : (isEn
+              ? `Login: kotik_${product.id}_${Math.floor(Math.random() * 899 + 100)}@kotikstore.ai\nPassword: KotikPass#${Math.floor(Math.random() * 8999 + 1000)}\nAccess Token: ${generatedKey}`
+              : `Логин: kotik_${product.id}_${Math.floor(Math.random() * 899 + 100)}@kotikstore.ai\nПароль: KotikPass#${Math.floor(Math.random() * 8999 + 1000)}\nКод доступа: ${generatedKey}`),
+        instructions: isEn
+          ? [
+              'Log in to the official service website with provided credentials.',
+              'For personal upgrades, invite is sent directly to your email/profile.',
+              'If 2FA is required, contact 24/7 support @Zykolandstore.',
+            ]
+          : [
+              'Авторизуйтесь на официальном сайте сервиса с полученными данными.',
+              'В случае личного подключения инвайт отправлен на указанную почту/профиль.',
+              'Если потребуется код 2FA — напишите саппорту @Zykolandstore, выдача 24/7.',
+            ],
         brandColor: product.brandColor,
       };
 
       onOrderSuccess(newOrder);
     }, 1800);
   };
+
+  const durationText = isEn
+    ? duration.months === 1
+      ? '1 month'
+      : duration.months === 12
+      ? '1 year'
+      : `${duration.months} months`
+    : duration.label;
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center">
@@ -214,10 +263,10 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <h2 className="text-base font-bold text-white tracking-tight">
-              Оформление заказа
+              {isEn ? 'Order Checkout' : 'Оформление заказа'}
             </h2>
             <span className="text-[10px] px-2 py-0.5 rounded-full bg-pink-500/20 text-pink-300 border border-pink-500/30 font-mono">
-              ШАГ 2 ИЗ 2
+              {isEn ? 'STEP 2 OF 2' : 'ШАГ 2 ИЗ 2'}
             </span>
           </div>
 
@@ -258,13 +307,13 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               <div className="text-sm font-bold text-pink-400 font-mono">
                 ${totalPrice.toFixed(2)}
               </div>
-              <div className="text-[10px] text-white/40">{duration.label}</div>
+              <div className="text-[10px] text-white/40">{durationText}</div>
             </div>
           </div>
 
           {contact && (
             <div className="pt-2 border-t border-white/5 text-[11px] text-white/60 flex items-center justify-between">
-              <span>Контакт:</span>
+              <span>{isEn ? 'Contact:' : 'Контакт:'}</span>
               <span className="font-mono text-cyan-300 font-medium">{contact}</span>
             </div>
           )}
@@ -273,7 +322,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         {/* Payment Methods Section */}
         <div className="mb-4">
           <label className="block text-xs font-bold text-white/70 mb-2">
-            Выберите способ оплаты:
+            {isEn ? 'Select payment method:' : 'Выберите способ оплаты:'}
           </label>
           <div className="space-y-2">
             {paymentMethods.map((method) => {
@@ -337,7 +386,11 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         {/* Security & Guarantee Note */}
         <div className="flex items-center justify-center gap-1.5 text-[11px] text-white/40 mb-4">
           <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-          <span>Безопасная оплата • Данные защищены сквозным шифрованием</span>
+          <span>
+            {isEn
+              ? 'Secure checkout • Protected by end-to-end encryption'
+              : 'Безопасная оплата • Данные защищены сквозным шифрованием'}
+          </span>
         </div>
 
         {/* CTA Button */}
@@ -350,11 +403,11 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
           {isProcessing ? (
             <>
               <Loader2 className="w-4 h-4 animate-spin text-white" />
-              <span>Обработка платежа...</span>
+              <span>{isEn ? 'Processing payment...' : 'Обработка платежа...'}</span>
             </>
           ) : (
             <>
-              <span>Оплатить ${totalPrice.toFixed(2)}</span>
+              <span>{isEn ? `Pay $${totalPrice.toFixed(2)}` : `Оплатить $${totalPrice.toFixed(2)}`}</span>
               <ChevronRight className="w-4 h-4" />
             </>
           )}

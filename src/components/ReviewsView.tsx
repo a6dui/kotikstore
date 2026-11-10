@@ -1,14 +1,20 @@
 import React, { useState } from 'react';
 import { Star, MessageSquare, Plus, CheckCircle, ShieldCheck } from 'lucide-react';
 import type { Review } from '../types';
+import type { Language } from '../utils/i18n';
 import { triggerHaptic } from '../utils/telegram';
 
 interface ReviewsViewProps {
   reviews: Review[];
   onOpenReviewModal: () => void;
+  lang?: Language;
 }
 
-export const ReviewsView: React.FC<ReviewsViewProps> = ({ reviews, onOpenReviewModal }) => {
+export const ReviewsView: React.FC<ReviewsViewProps> = ({
+  reviews,
+  onOpenReviewModal,
+  lang = 'ru',
+}) => {
   const [filterRating, setFilterRating] = useState<number | 'all'>('all');
 
   const filteredReviews = filterRating === 'all'
@@ -39,7 +45,9 @@ export const ReviewsView: React.FC<ReviewsViewProps> = ({ reviews, onOpenReviewM
             ))}
           </div>
           <div className="text-xs text-white/60 font-medium">
-            Основано на {reviews.length} подтвержденных отзывах
+            {lang === 'en'
+              ? `Based on ${reviews.length} verified reviews`
+              : `Основано на ${reviews.length} подтвержденных отзывах`}
           </div>
 
           <div className="mt-4 flex items-center justify-center gap-2">
@@ -51,7 +59,7 @@ export const ReviewsView: React.FC<ReviewsViewProps> = ({ reviews, onOpenReviewM
               className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-fuchsia-500 to-cyan-500 text-white text-xs font-bold shadow-lg shadow-fuchsia-500/25 active:scale-95 transition-all flex items-center gap-1.5"
             >
               <Plus className="w-4 h-4" />
-              <span>Оставить отзыв</span>
+              <span>{lang === 'en' ? 'Leave a Review' : 'Оставить отзыв'}</span>
             </button>
           </div>
         </div>
@@ -70,7 +78,7 @@ export const ReviewsView: React.FC<ReviewsViewProps> = ({ reviews, onOpenReviewM
               : 'bg-white/5 text-white/70 hover:bg-white/10 border border-white/10'
           }`}
         >
-          Все ({reviews.length})
+          {lang === 'en' ? 'All' : 'Все'} ({reviews.length})
         </button>
         {[5, 4, 3].map((star) => {
           const count = reviews.filter((r) => r.rating === star).length;
@@ -100,7 +108,11 @@ export const ReviewsView: React.FC<ReviewsViewProps> = ({ reviews, onOpenReviewM
         {filteredReviews.length === 0 ? (
           <div className="rounded-2xl border border-white/10 bg-white/5 p-8 text-center text-white/50 text-sm">
             <MessageSquare className="w-8 h-8 mx-auto mb-2 opacity-40" />
-            <p>Отзывов в этой категории пока нет.</p>
+            <p>
+              {lang === 'en'
+                ? 'No reviews in this category yet.'
+                : 'Отзывов в этой категории пока нет.'}
+            </p>
           </div>
         ) : (
           filteredReviews.map((rev) => (
@@ -122,7 +134,7 @@ export const ReviewsView: React.FC<ReviewsViewProps> = ({ reviews, onOpenReviewM
                       {rev.isVerifiedPurchase && (
                         <span className="flex items-center gap-0.5 text-[9px] font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded-full">
                           <ShieldCheck className="w-2.5 h-2.5" />
-                          <span>Куплено</span>
+                          <span>{lang === 'en' ? 'Verified' : 'Куплено'}</span>
                         </span>
                       )}
                     </div>
@@ -159,7 +171,11 @@ export const ReviewsView: React.FC<ReviewsViewProps> = ({ reviews, onOpenReviewM
                 <div className="rounded-xl border border-fuchsia-500/20 bg-fuchsia-500/5 p-2.5 text-[11px] text-white/80 space-y-1">
                   <div className="flex items-center gap-1 font-bold text-fuchsia-400 text-[10px]">
                     <CheckCircle className="w-3 h-3" />
-                    <span>Ответ команды Kotik Store:</span>
+                    <span>
+                      {lang === 'en'
+                        ? 'Kotik Store Team Response:'
+                        : 'Ответ команды Kotik Store:'}
+                    </span>
                   </div>
                   <p className="italic text-white/70">{rev.sellerReply}</p>
                 </div>

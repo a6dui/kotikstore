@@ -39,7 +39,7 @@ export const Header: React.FC<HeaderProps> = ({
     ? `${user.first_name}${user.last_name ? ' ' + user.last_name : ''}` 
     : user.username 
     ? `@${user.username}` 
-    : 'Котик-Друг';
+    : (lang === 'en' ? 'Kotik Friend' : 'Котик-Друг');
 
   return (
     <header className="sticky top-0 z-30 w-full px-4 py-3 bg-[#07040d]/85 backdrop-blur-xl border-b border-white/5 transition-all">
@@ -68,7 +68,9 @@ export const Header: React.FC<HeaderProps> = ({
 
           <div className="flex flex-col">
             <div className="flex items-center gap-1">
-              <span className="text-xs text-white/50 font-medium">Привет,</span>
+              <span className="text-xs text-white/50 font-medium">
+                {lang === 'en' ? 'Hello,' : 'Привет,'}
+              </span>
               <span className="text-xs font-semibold text-white truncate max-w-[105px]">
                 {displayName}
               </span>

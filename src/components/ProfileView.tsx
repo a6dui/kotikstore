@@ -16,6 +16,7 @@ import {
   Lock,
 } from 'lucide-react';
 import type { TelegramUser, DailyStreakState, PolicyType } from '../types';
+import type { Language } from '../utils/i18n';
 import { triggerHaptic } from '../utils/telegram';
 
 interface ProfileViewProps {
@@ -30,6 +31,7 @@ interface ProfileViewProps {
   x2PromotionActive: boolean;
   isStaff?: boolean;
   onOpenApiDocs?: () => void;
+  lang?: Language;
 }
 
 export const ProfileView: React.FC<ProfileViewProps> = ({
@@ -44,7 +46,9 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   x2PromotionActive,
   isStaff = false,
   onOpenApiDocs,
+  lang = 'ru',
 }) => {
+  const isEn = lang === 'en';
   const [copiedReferral, setCopiedReferral] = useState(false);
   const [copiedApiKey, setCopiedApiKey] = useState(false);
   const [apiKey, setApiKey] = useState('ktk_live_9f82d1a3c704e6b5');
@@ -94,7 +98,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
           <div className="flex-1">
             <div className="flex items-center gap-1.5">
               <h2 className="text-base font-extrabold text-white">
-                {user?.first_name || 'Гость Kotik Store'}
+                {user?.first_name || (isEn ? 'Kotik Store Guest' : 'Гость Kotik Store')}
               </h2>
               {isPremium && (
                 <span className="text-[10px] px-2 py-0.5 rounded-full bg-yellow-400/20 text-yellow-300 border border-yellow-400/30 font-bold">
@@ -108,7 +112,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
 
             <div className="mt-2 flex items-center gap-2">
               <div className="text-xs font-mono font-bold text-cyan-300 bg-cyan-500/10 border border-cyan-500/20 px-2.5 py-1 rounded-lg">
-                Баланс: ${balance.toFixed(2)}
+                {isEn ? 'Balance:' : 'Баланс:'} ${balance.toFixed(2)}
               </div>
               <button
                 onClick={() => {
@@ -117,7 +121,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                 }}
                 className="text-[11px] font-bold text-fuchsia-300 hover:text-white bg-fuchsia-500/20 hover:bg-fuchsia-500/30 border border-fuchsia-500/30 px-2.5 py-1 rounded-lg transition-all"
               >
-                + Пополнить
+                {isEn ? '+ Top Up' : '+ Пополнить'}
               </button>
             </div>
           </div>
@@ -129,10 +133,12 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Calendar className="w-4 h-4 text-amber-400" />
-            <h3 className="text-sm font-extrabold text-white">Календарь наград</h3>
+            <h3 className="text-sm font-extrabold text-white">
+              {isEn ? 'Daily Rewards' : 'Календарь наград'}
+            </h3>
           </div>
           <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300">
-            Стрик: {streakState.streakDays} дн.
+            {isEn ? 'Streak:' : 'Стрик:'} {streakState.streakDays} {isEn ? 'd.' : 'дн.'}
           </span>
         </div>
 
@@ -153,7 +159,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                     : 'border-white/5 bg-white/[0.02] opacity-45'
                 }`}
               >
-                <span className="text-[9px] font-bold text-white/50">{rew.day}д</span>
+                <span className="text-[9px] font-bold text-white/50">{rew.day}{isEn ? 'd' : 'д'}</span>
                 {isCompleted ? (
                   <Check className="w-3.5 h-3.5 text-emerald-400 my-1" />
                 ) : (
@@ -185,7 +191,9 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
         >
           <Gift className="w-4 h-4" />
           <span>
-            {streakState.claimedToday ? 'Награда за сегодня уже собрана ✓' : 'Забрать ежедневную награду'}
+            {streakState.claimedToday
+              ? (isEn ? 'Reward already claimed today ✓' : 'Награда за сегодня уже собрана ✓')
+              : (isEn ? 'Claim Daily Reward' : 'Забрать ежедневную награду')}
           </span>
         </button>
       </div>
@@ -193,15 +201,21 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
       {/* 📊 Мой дашборд */}
       <div className="grid grid-cols-3 gap-2.5">
         <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3 text-center">
-          <div className="text-[10px] text-white/40 font-semibold uppercase">Покупки</div>
+          <div className="text-[10px] text-white/40 font-semibold uppercase">
+            {isEn ? 'Purchases' : 'Покупки'}
+          </div>
           <div className="text-base font-extrabold text-white mt-0.5">{ordersCount}</div>
         </div>
         <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3 text-center">
-          <div className="text-[10px] text-white/40 font-semibold uppercase">Оборот</div>
+          <div className="text-[10px] text-white/40 font-semibold uppercase">
+            {isEn ? 'Volume' : 'Оборот'}
+          </div>
           <div className="text-base font-extrabold text-cyan-300 mt-0.5">${(ordersCount * 18.5).toFixed(0)}</div>
         </div>
         <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3 text-center">
-          <div className="text-[10px] text-white/40 font-semibold uppercase">Ранг</div>
+          <div className="text-[10px] text-white/40 font-semibold uppercase">
+            {isEn ? 'Rank' : 'Ранг'}
+          </div>
           <div className="text-base font-extrabold text-yellow-400 mt-0.5">Silver</div>
         </div>
       </div>
@@ -215,7 +229,9 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
             </div>
             <div>
               <h3 className="text-sm font-extrabold text-white">Kotik Store Premium</h3>
-              <p className="text-[10px] text-white/50">Эксклюзивный доступ и привилегии</p>
+              <p className="text-[10px] text-white/50">
+                {isEn ? 'Exclusive access & privileges' : 'Эксклюзивный доступ и привилегии'}
+              </p>
             </div>
           </div>
           <button
@@ -229,22 +245,30 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                 : 'bg-white/10 text-white/80 hover:bg-white/20'
             }`}
           >
-            {isPremium ? 'Активен ✓' : 'Подключить $3.99/мес'}
+            {isPremium
+              ? (isEn ? 'Active ✓' : 'Активен ✓')
+              : (isEn ? 'Subscribe $3.99/mo' : 'Подключить $3.99/мес')}
           </button>
         </div>
 
         <ul className="text-xs text-white/70 space-y-1.5 pt-1">
           <li className="flex items-center gap-2">
             <Sparkles className="w-3.5 h-3.5 text-yellow-400 shrink-0" />
-            <span>+5% дополнительного кэшбэка со всех покупок</span>
+            <span>
+              {isEn ? '+5% extra cashback on all purchases' : '+5% дополнительного кэшбэка со всех покупок'}
+            </span>
           </li>
           <li className="flex items-center gap-2">
             <Sparkles className="w-3.5 h-3.5 text-yellow-400 shrink-0" />
-            <span>Приоритетная автовыдача без ожидания очереди</span>
+            <span>
+              {isEn ? 'Priority instant auto-delivery with no queues' : 'Приоритетная автовыдача без ожидания очереди'}
+            </span>
           </li>
           <li className="flex items-center gap-2">
             <Sparkles className="w-3.5 h-3.5 text-yellow-400 shrink-0" />
-            <span>Доступ к закрытым дропам API-токенов</span>
+            <span>
+              {isEn ? 'Access to exclusive API token drops' : 'Доступ к закрытым дропам API-токенов'}
+            </span>
           </li>
         </ul>
       </div>
@@ -254,16 +278,20 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Wallet className="w-4 h-4 text-cyan-400" />
-            <h3 className="text-sm font-extrabold text-white">Пополнение баланса</h3>
+            <h3 className="text-sm font-extrabold text-white">
+              {isEn ? 'Top Up Balance' : 'Пополнение баланса'}
+            </h3>
           </div>
           {x2PromotionActive && (
             <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-gradient-to-r from-fuchsia-500 to-cyan-500 text-white animate-pulse">
-              🔥 X2 БОНУС
+              {isEn ? '🔥 X2 BONUS' : '🔥 X2 БОНУС'}
             </span>
           )}
         </div>
         <p className="text-xs text-white/60">
-          Пополняйте баланс через CryptoBot (USDT, TON), Карты РФ / СБП или Telegram Stars.
+          {isEn
+            ? 'Top up via CryptoBot (USDT, TON), Cards / SBP or Telegram Stars.'
+            : 'Пополняйте баланс через CryptoBot (USDT, TON), Карты РФ / СБП или Telegram Stars.'}
         </p>
         <button
           onClick={() => {
@@ -273,7 +301,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
           className="w-full py-3 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-extrabold text-xs shadow-lg shadow-cyan-500/25 active:scale-98 transition-all flex items-center justify-center gap-2"
         >
           <Wallet className="w-4 h-4" />
-          <span>Перейти к пополнению</span>
+          <span>{isEn ? 'Proceed to Top Up' : 'Перейти к пополнению'}</span>
         </button>
       </div>
 
@@ -282,10 +310,12 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Users className="w-4 h-4 text-fuchsia-400" />
-            <h3 className="text-sm font-extrabold text-white">Реферальная программа (10%)</h3>
+            <h3 className="text-sm font-extrabold text-white">
+              {isEn ? 'Referral Program (10%)' : 'Реферальная программа (10%)'}
+            </h3>
           </div>
           <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-yellow-400/20 text-yellow-300 border border-yellow-400/30">
-            🏆 $10 + Премиум
+            {isEn ? '🏆 $10 + Premium' : '🏆 $10 + Премиум'}
           </span>
         </div>
 
@@ -294,32 +324,48 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
           <div className="flex items-center justify-between">
             <div className="text-xs font-black text-yellow-300 flex items-center gap-1.5">
               <Crown className="w-4 h-4 text-yellow-400" />
-              <span>Призовой фонд месяца: $10.00</span>
+              <span>{isEn ? 'Monthly Prize Pool: $10.00' : 'Призовой фонд месяца: $10.00'}</span>
             </div>
             <span className="text-[9px] font-bold text-white/50 bg-white/10 px-2 py-0.5 rounded-full">
-              Ежемесячно
+              {isEn ? 'Monthly' : 'Ежемесячно'}
             </span>
           </div>
           <p className="text-[11px] text-white/70">
-            Тот, кто пригласит больше всех людей за месяц, получит <b className="text-yellow-400">$10.00 на баланс</b> и эксклюзивный статус <b className="text-fuchsia-300">«Премиум Котик» 👑</b>!
+            {isEn ? (
+              <>
+                The user who invites the most people this month gets <b className="text-yellow-400">$10.00 balance</b> and exclusive status <b className="text-fuchsia-300">«Premium Kotik» 👑</b>!
+              </>
+            ) : (
+              <>
+                Тот, кто пригласит больше всех людей за месяц, получит <b className="text-yellow-400">$10.00 на баланс</b> и эксклюзивный статус <b className="text-fuchsia-300">«Премиум Котик» 👑</b>!
+              </>
+            )}
           </p>
         </div>
 
         {/* Личная статистика приглашений */}
         <div className="grid grid-cols-2 gap-2 text-center">
           <div className="p-2.5 rounded-xl bg-white/[0.03] border border-white/5">
-            <div className="text-[10px] text-white/40 uppercase font-semibold">Приглашено друзей</div>
-            <div className="text-sm font-black text-white mt-0.5">0 чел.</div>
+            <div className="text-[10px] text-white/40 uppercase font-semibold">
+              {isEn ? 'Friends Invited' : 'Приглашено друзей'}
+            </div>
+            <div className="text-sm font-black text-white mt-0.5">
+              {isEn ? '0 users' : '0 чел.'}
+            </div>
           </div>
           <div className="p-2.5 rounded-xl bg-white/[0.03] border border-white/5">
-            <div className="text-[10px] text-white/40 uppercase font-semibold">Заработано (10%)</div>
+            <div className="text-[10px] text-white/40 uppercase font-semibold">
+              {isEn ? 'Earned (10%)' : 'Заработано (10%)'}
+            </div>
             <div className="text-sm font-black text-emerald-400 mt-0.5">$0.00</div>
           </div>
         </div>
 
         {/* Ваша реферальная ссылка */}
         <div className="space-y-1.5">
-          <label className="text-[11px] font-bold text-white/60">Ваша реферальная ссылка</label>
+          <label className="text-[11px] font-bold text-white/60">
+            {isEn ? 'Your Referral Link' : 'Ваша реферальная ссылка'}
+          </label>
           <div className="flex items-center gap-2">
             <input
               type="text"
@@ -332,7 +378,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
               className="px-3.5 py-2 rounded-xl bg-fuchsia-500/20 border border-fuchsia-500/30 text-fuchsia-300 hover:text-white text-xs font-bold transition-all flex items-center gap-1.5"
             >
               {copiedReferral ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
-              <span>{copiedReferral ? 'Скопировано' : 'Копировать'}</span>
+              <span>{copiedReferral ? (isEn ? 'Copied' : 'Скопировано') : (isEn ? 'Copy' : 'Копировать')}</span>
             </button>
           </div>
         </div>
@@ -342,17 +388,23 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
           <div className="flex items-center justify-between text-xs font-bold text-white/70">
             <span className="flex items-center gap-1.5">
               <Users className="w-3.5 h-3.5 text-fuchsia-400" />
-              <span>Топ приглашений (этого месяца)</span>
+              <span>{isEn ? 'Monthly Referral Leaderboard' : 'Топ приглашений (этого месяца)'}</span>
             </span>
-            <span className="text-[10px] text-white/40">Реальное время</span>
+            <span className="text-[10px] text-white/40">
+              {isEn ? 'Real-time' : 'Реальное время'}
+            </span>
           </div>
 
           <div className="p-3.5 rounded-xl bg-white/[0.02] border border-white/5 text-center">
             <p className="text-xs text-white/60">
-              В этом месяце ещё никто не пригласил рефералов.
+              {isEn
+                ? 'No referrals yet this month. Invite friends and earn 10%!'
+                : 'В этом месяце ещё никто не пригласил рефералов.'}
             </p>
             <p className="text-[11px] text-yellow-400 font-bold mt-1">
-              🚀 Пригласите первого друга и станьте ТОП-1 месяца!
+              {isEn
+                ? '🚀 Invite your first friend and become TOP-1 this month!'
+                : '🚀 Пригласите первого друга и станьте ТОП-1 месяца!'}
             </p>
           </div>
         </div>
@@ -363,18 +415,22 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Key className="w-4 h-4 text-emerald-400" />
-            <h3 className="text-sm font-extrabold text-white">API & Интеграция</h3>
+            <h3 className="text-sm font-extrabold text-white">
+              {isEn ? 'API & Integration' : 'API & Интеграция'}
+            </h3>
           </div>
           <button
             onClick={regenerateApiKey}
             className="text-[10px] text-white/50 hover:text-white flex items-center gap-1"
           >
             <RotateCcw className="w-3 h-3" />
-            <span>Обновить</span>
+            <span>{isEn ? 'Refresh' : 'Обновить'}</span>
           </button>
         </div>
         <p className="text-xs text-white/60">
-          Используйте персональный ключ для автоматических закупок подписок и аккаунтов через ваших ботов, сайты или скрипты.
+          {isEn
+            ? 'Use your personal API key for automated subscriptions & accounts purchases via bots, websites or custom scripts.'
+            : 'Используйте персональный ключ для автоматических закупок подписок и аккаунтов через ваших ботов, сайты или скрипты.'}
         </p>
 
         <div className="flex items-center gap-2">
@@ -389,7 +445,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
             className="px-3.5 py-2 rounded-xl bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 hover:text-white text-xs font-bold transition-all flex items-center gap-1.5"
           >
             {copiedApiKey ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
-            <span>{copiedApiKey ? 'Готово' : 'Копия'}</span>
+            <span>{copiedApiKey ? (isEn ? 'Done' : 'Готово') : (isEn ? 'Copy' : 'Копия')}</span>
           </button>
         </div>
 
@@ -402,7 +458,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
           className="w-full py-2.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 hover:text-white font-bold text-xs transition-all flex items-center justify-center gap-2"
         >
           <Sparkles className="w-3.5 h-3.5" />
-          <span>📖 Открыть документацию API (cURL, Python, JS)</span>
+          <span>{isEn ? '📖 Open API Documentation (cURL, Python, JS)' : '📖 Открыть документацию API (cURL, Python, JS)'}</span>
         </button>
       </div>
 
@@ -417,7 +473,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
         >
           <div className="flex items-center gap-2.5">
             <FileText className="w-4 h-4 text-fuchsia-400" />
-            <span>Пользовательское соглашение</span>
+            <span>{isEn ? 'Terms of Service' : 'Пользовательское соглашение'}</span>
           </div>
           <ChevronRight className="w-4 h-4 text-white/40" />
         </button>
@@ -431,7 +487,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
         >
           <div className="flex items-center gap-2.5">
             <Shield className="w-4 h-4 text-cyan-400" />
-            <span>Политика конфиденциальности</span>
+            <span>{isEn ? 'Privacy Policy' : 'Политика конфиденциальности'}</span>
           </div>
           <ChevronRight className="w-4 h-4 text-white/40" />
         </button>
@@ -445,7 +501,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
         >
           <div className="flex items-center gap-2.5">
             <RotateCcw className="w-4 h-4 text-yellow-400" />
-            <span>Гарантия и условия возврата</span>
+            <span>{isEn ? 'Warranty & Refund Policy' : 'Гарантия и условия возврата'}</span>
           </div>
           <ChevronRight className="w-4 h-4 text-white/40" />
         </button>
@@ -462,7 +518,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
             className="text-xs text-pink-400 hover:text-pink-300 transition-colors inline-flex items-center gap-1.5 py-1.5 px-4 rounded-full bg-pink-500/10 border border-pink-500/20 hover:bg-pink-500/20"
           >
             <Lock className="w-3.5 h-3.5" />
-            <span>Панель Администратора</span>
+            <span>{isEn ? 'Staff Admin Panel' : 'Панель Администратора'}</span>
           </button>
         </div>
       )}

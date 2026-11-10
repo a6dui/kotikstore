@@ -247,3 +247,175 @@ export function getInitialLanguage(): Language {
 export function t(key: keyof typeof DICTIONARY['ru'], lang: Language): string {
   return DICTIONARY[lang][key] || DICTIONARY['ru'][key] || key;
 }
+
+import type { Product } from '../types';
+
+export const PRODUCT_EN_DATA: Record<string, {
+  tagline: string;
+  description: string;
+  features: string[];
+  warrantyText: string;
+  badge: string;
+  instruction?: string;
+  options?: Record<string, { name: string; description: string }>;
+}> = {
+  'chatgpt-plus': {
+    tagline: 'GPT-4o, o1 Reasoning, DALL-E 3 & Code Analysis',
+    description: 'Official ChatGPT Plus subscription. Unlimited access to flagship models GPT-4o, o1, Canvas, deep file analysis, custom GPTs and DALL-E 3 generation.',
+    features: [
+      'Access to top o1 and GPT-4o models',
+      'Unlimited image generation via DALL-E 3',
+      'Deep document, PDF and spreadsheet analysis',
+      'Chat memory & access to GPTs store',
+    ],
+    warrantyText: '100% full duration warranty with instant replacement',
+    badge: 'BESTSELLER',
+    instruction: '1. Go to chatgpt.com\n2. Click Log in\n3. Enter credentials\n4. For 2FA help contact @Zykolandstore',
+    options: {
+      opt_shared: {
+        name: 'Shared Account',
+        description: 'Ready-to-use shared account with dedicated profile. Save 80%.',
+      },
+      opt_personal: {
+        name: 'Personal Account Upgrade',
+        description: 'Official activation directly on your email. 100% private.',
+      },
+    },
+  },
+  'gemini-advanced': {
+    tagline: '2,000,000 token context + 2TB Google One storage',
+    description: "Google's flagship AI with a massive 2 million token context window. Analyzes full-length videos, entire books, and full codebases. Includes 2TB Google One cloud.",
+    features: [
+      'Gemini 1.5 Pro and 2.0 Flash models',
+      'Up to 2,000,000 token context (books, code repos)',
+      'Integrated in Google Docs, Gmail, YouTube',
+      'Bonus: 2TB Google One cloud storage',
+    ],
+    warrantyText: 'Full duration warranty by Kotik Store',
+    badge: "KOTIK'S PICK",
+    instruction: 'Check your Gmail inbox for Google One Family invitation and click Accept.',
+    options: {
+      opt_invite: {
+        name: 'Family Invite (Personal Gmail)',
+        description: 'Google One family invite sent to your personal Gmail.',
+      },
+      opt_ready: {
+        name: 'Ready Account',
+        description: 'Fresh Google account with active Advanced subscription.',
+      },
+    },
+  },
+  'claude-3-7-pro': {
+    tagline: 'Hybrid Thinking & Claude Code for developers',
+    description: "Anthropic's flagship model Claude 3.7 Sonnet with Extended Thinking. #1 AI model in the world for coding benchmarks, architectural refactoring and interactive Artifacts.",
+    features: [
+      'Latest Claude 3.7 Sonnet with Extended Thinking',
+      'Interactive Artifacts (code, UI, graphics on the fly)',
+      '5x higher usage limits than free plan',
+      'Perfect for software engineers and writers',
+    ],
+    warrantyText: '24/7 instant auto-replacement on any issue',
+    badge: 'TOP FOR CODE',
+    instruction: 'Visit claude.ai and log in with the provided credentials.',
+    options: {
+      opt_claude_ready: {
+        name: 'Ready Account with Warranty',
+        description: 'Verified Anthropic account with personal credentials and warranty.',
+      },
+    },
+  },
+  'grok-ai': {
+    tagline: 'Uncensored real-time AI by xAI with FLUX generation',
+    description: "Elon Musk's next-gen AI. Real-time news and trending topics from X, zero ideological censorship, humor mode, and FLUX image generator. Includes X Premium+ blue checkmark.",
+    features: [
+      'Grok 3 with powerful reasoning engine',
+      'Real-time information without delays',
+      'Realistic FLUX image generation',
+      'X (Twitter) Premium+ verification badge',
+    ],
+    warrantyText: 'Official connection, 100% account safety',
+    badge: 'UNCENSORED',
+    instruction: 'Log in to X (Twitter) using the provided token or contact support.',
+    options: {
+      opt_grok_personal: {
+        name: 'Personal Upgrade on your X',
+        description: 'Premium+ activated on your personal X profile.',
+      },
+      opt_grok_ready: {
+        name: 'Ready X Premium+ Account',
+        description: 'Pre-activated verified profile with Grok AI enabled.',
+      },
+    },
+  },
+  'elevenlabs': {
+    tagline: 'Realistic voice cloning & generative audio platform',
+    description: 'Industry-standard voice synthesis and instant voice cloning. Ideal for YouTube, Shorts, audiobooks, podcasts, and dubbing in 30+ languages.',
+    features: [
+      'Instant voice cloning from 1 minute of sample',
+      'Subtle emotions and human-like intonations',
+      'Commercial rights on all generated audio',
+      'AI Sound Effects generator included',
+    ],
+    warrantyText: 'Credit refill and support for full duration',
+    badge: 'AI VOICE',
+    instruction: 'Log in at elevenlabs.io. Your API key is under Profile -> API Keys.',
+    options: {
+      opt_eleven_starter: {
+        name: 'Starter Plan (30,000 credits)',
+        description: '30,000 characters per month, up to 3 custom voice clones.',
+      },
+      opt_eleven_creator: {
+        name: 'Creator Plan (100,000 credits)',
+        description: '100,000 characters per month, studio-grade voice clones.',
+      },
+    },
+  },
+  'capcut-pro': {
+    tagline: 'Auto-captions, AI background removal & 4K render',
+    description: 'Top video editor for TikTok, Instagram Reels, and YouTube Shorts. Animated captions, smart background cutout, Pro filters, transitions, and export without watermark.',
+    features: [
+      'Animated captions with trending styles',
+      'AI tools: background removal, auto face touchup',
+      '4K 60FPS export without watermark',
+      'CapCut Cloud 100GB storage included',
+    ],
+    warrantyText: '30-day warranty • Multi-device access',
+    badge: 'REELS / TIKTOK',
+    instruction: 'Log in to CapCut app on PC or mobile with the provided credentials.',
+    options: {
+      opt_capcut_cloud: {
+        name: 'Shared Cloud Pro Account',
+        description: 'PC and mobile login, instant access to all Pro features.',
+      },
+      opt_capcut_personal: {
+        name: 'Personal QR Code Login',
+        description: 'One-time QR code login directly on your personal device.',
+      },
+    },
+  },
+};
+
+export function getLocalizedProduct(product: Product, lang: Language): Product {
+  if (lang !== 'en') return product;
+  const enData = PRODUCT_EN_DATA[product.id];
+  if (!enData) return product;
+
+  return {
+    ...product,
+    tagline: enData.tagline || product.tagline,
+    description: enData.description || product.description,
+    features: enData.features || product.features,
+    warrantyText: enData.warrantyText || product.warrantyText,
+    badge: enData.badge || product.badge,
+    instruction: enData.instruction || product.instruction,
+    options: product.options.map((opt) => {
+      const optEn = enData.options?.[opt.id];
+      if (!optEn) return opt;
+      return {
+        ...opt,
+        name: optEn.name || opt.name,
+        description: optEn.description || opt.description,
+      };
+    }),
+  };
+}

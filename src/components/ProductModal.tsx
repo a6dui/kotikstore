@@ -13,7 +13,7 @@ import {
   Save,
 } from 'lucide-react';
 import type { Product, ProductOption, DurationOption, Category } from '../types';
-import type { Language } from '../utils/i18n';
+import { getLocalizedProduct, type Language } from '../utils/i18n';
 import { BrandIconRenderer } from './BrandIcons';
 import { haptic } from '../utils/telegram';
 
@@ -82,13 +82,16 @@ export const ProductModal: React.FC<ProductModalProps> = ({
 
   if (!product) return null;
 
+  // Localize for display if English
+  const displayProduct = getLocalizedProduct(product, lang);
+
   const selectedOption =
-    (customOptionId ? product.options.find((o) => o.id === customOptionId) : null) ||
-    product.options[0];
+    (customOptionId ? displayProduct.options.find((o) => o.id === customOptionId) : null) ||
+    displayProduct.options[0];
 
   const selectedDuration =
-    (customMonths !== null ? product.durations.find((d) => d.months === customMonths) : null) ||
-    product.durations[0];
+    (customMonths !== null ? displayProduct.durations.find((d) => d.months === customMonths) : null) ||
+    displayProduct.durations[0];
 
   // Calculate dynamic price with discounts
   const rawTotal = selectedOption.baseMonthlyPrice * selectedDuration.months;
@@ -119,13 +122,17 @@ export const ProductModal: React.FC<ProductModalProps> = ({
   const handleBuyClick = () => {
     if (selectedOption.isPersonal && !contact.trim()) {
       haptic.warning();
-      setContactError('Пожалуйста, укажите ваш Email или @username для связи');
+      setContactError(
+        lang === 'en'
+          ? 'Please provide your Email or @username for connection'
+          : 'Пожалуйста, укажите ваш Email или @username для связи'
+      );
       return;
     }
 
     haptic.heavy();
     onProceedToCheckout({
-      product,
+      product: displayProduct,
       option: selectedOption,
       duration: selectedDuration,
       contact: contact.trim(),
@@ -188,26 +195,26 @@ export const ProductModal: React.FC<ProductModalProps> = ({
             <div
               className="w-12 h-12 rounded-2xl flex items-center justify-center p-2.5 relative shadow-lg shrink-0"
               style={{
-                backgroundColor: `${product.brandColor}22`,
-                border: `1px solid ${product.brandColor}40`,
-                color: product.brandColor,
+                backgroundColor: `${displayProduct.brandColor}22`,
+                border: `1px solid ${displayProduct.brandColor}40`,
+                color: displayProduct.brandColor,
               }}
             >
-              <BrandIconRenderer type={product.iconType} size={28} />
+              <BrandIconRenderer type={displayProduct.iconType} size={28} />
             </div>
 
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-lg font-bold text-white tracking-tight">
-                  {product.title}
+                  {displayProduct.title}
                 </h2>
                 <span
-                  className={`text-[9px] font-bold px-2 py-0.5 rounded-full border bg-gradient-to-r ${product.badgeColor}`}
+                  className={`text-[9px] font-bold px-2 py-0.5 rounded-full border bg-gradient-to-r ${displayProduct.badgeColor}`}
                 >
-                  {product.badge}
+                  {displayProduct.badge}
                 </span>
               </div>
-              <p className="text-xs text-white/50">{product.tagline}</p>
+              <p className="text-xs text-white/50">{displayProduct.tagline}</p>
             </div>
           </div>
 
@@ -246,16 +253,18 @@ export const ProductModal: React.FC<ProductModalProps> = ({
           <div className="flex items-center gap-1.5 text-white/60">
             <span
               className={`w-2 h-2 rounded-full ${
-                product.stockCount > 0 ? 'bg-emerald-400' : 'bg-amber-400'
+                displayProduct.stockCount > 0 ? 'bg-emerald-400' : 'bg-amber-400'
               }`}
             />
             <span>
-              {product.stockCount > 0
-                ? `В наличии на складе: ${product.stockCount} шт.`
-                : 'Под заказ (0 шт. на складе) • Быстрая выдача'}
+              {displayProduct.stockCount > 0
+                ? (lang === 'en' ? `In stock: ${displayProduct.stockCount} pcs` : `В наличии на складе: ${displayProduct.stockCount} шт.`)
+                : (lang === 'en' ? 'Pre-order (0 in stock) • Instant setup' : 'Под заказ (0 шт. на складе) • Быстрая выдача')}
             </span>
           </div>
-          <span className="font-mono text-cyan-300 font-bold">от ${product.startingPrice}/мес</span>
+          <span className="font-mono text-cyan-300 font-bold">
+            {lang === 'en' ? 'from' : 'от'} ${displayProduct.startingPrice}{lang === 'en' ? '/mo' : '/мес'}
+          </span>
         </div>
 
         {/* === ADMIN INLINE EDITING FORM === */}
@@ -423,7 +432,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
             <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-gradient-to-r from-emerald-950/40 to-teal-950/30 border border-emerald-500/30 mb-4">
               <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
               <span className="text-[11px] font-medium text-emerald-200">
-                {product.warrantyText}
+                {displayProduct.warrantyText}
               </span>
             </div>
 
@@ -433,7 +442,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                 {lang === 'en' ? 'Included in subscription:' : 'Что входит в подписку:'}
               </span>
               <div className="grid grid-cols-1 gap-1.5 pt-1">
-                {product.features.map((feat, i) => (
+                {displayProduct.features.map((feat, i) => (
                   <div key={i} className="flex items-center gap-2 text-xs text-white/80">
                     <div className="w-4 h-4 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
                       <Check className="w-2.5 h-2.5 stroke-[3]" />
@@ -450,7 +459,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                 {lang === 'en' ? '1. Select Account Type:' : '1. Выберите тип подключения:'}
               </label>
               <div className="grid grid-cols-1 gap-2">
-                {product.options.map((opt) => {
+                {displayProduct.options.map((opt) => {
                   const isSelected = selectedOption.id === opt.id;
                   return (
                     <div
@@ -490,7 +499,9 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                         <span className="text-xs font-bold text-pink-300 font-mono">
                           ${opt.baseMonthlyPrice}
                         </span>
-                        <span className="text-[10px] text-white/40 block">/мес</span>
+                        <span className="text-[10px] text-white/40 block">
+                          {lang === 'en' ? '/mo' : '/мес'}
+                        </span>
                       </div>
                     </div>
                   );
@@ -512,7 +523,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
               </div>
 
               <div className="grid grid-cols-3 gap-2">
-                {product.durations.map((dur) => {
+                {displayProduct.durations.map((dur) => {
                   const isSelected = selectedDuration.months === dur.months;
                   const durLabel = lang === 'en'
                     ? dur.months === 1 ? '1 month' : dur.months === 12 ? '1 year' : `${dur.months} months`
