@@ -50,6 +50,10 @@ CHANNEL_AVATAR_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "
 dp = Dispatcher()
 bot_instance: Bot = None
 
+# Active session states (in-memory)
+user_support_state: dict[int, bool] = {}
+admin_session_state: dict[int, dict] = {}
+
 
 # =====================================================================
 # ADMIN NOTIFICATIONS SYSTEM (СМС/Оповещения в Telegram боте)
@@ -728,24 +732,23 @@ async def handle_privacy(event: types.Message | types.CallbackQuery):
 @dp.message(Command("support"))
 @dp.message(F.text == "💬 Поддержка")
 async def handle_support(event: types.Message | types.CallbackQuery):
+    user_id = event.from_user.id
+    user_support_state[user_id] = True
+
     support_text = (
-        "💬 <b>Служба заботы и поддержки Kotik Store</b>\n\n"
+        "💬 <b>Служба заботы Kotik Store (Тикет-система)</b>\n\n"
         "Возникли сложности с товаром, активацией подписки или пополнением баланса?\n\n"
-        "👤 <b>Администратор / Поддержка:</b> @Zykolandstore (для решения технических вопросов, замен и возвратов)\n"
-        "📢 <b>Наш Telegram-канал:</b> @KotikNews_shop (новости, раздачи, промокоды)\n\n"
-        "📝 <b>Инструкция для быстрой замены или возврата:</b>\n"
-        "1. Отправьте скриншот ошибки или нерабочего аккаунта прямо в чат @Zykolandstore.\n"
-        "2. Приложите видео покупки товара (непрерывная запись экрана с момента покупки до проверки).\n"
-        "3. Опишите проблему и укажите ID заказа из вкладки «Мои подписки».\n\n"
-        "⏱ <i>Среднее время ответа оператора: 2–5 минут (24/7)</i>"
+        "✍️ <b>Напишите ваш вопрос или опишите проблему прямо сюда следующим сообщением!</b>\n\n"
+        "Оператор получит ваше обращение и ответит вам прямо в этот диалог (24/7). Вам не нужно писать в сторонние личные сообщения! 🐾\n\n"
+        "<i>Или воспользуйтесь прямым контактом: @Zykolandstore</i>"
     )
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(text="👤 Написать @Zykolandstore", url="https://t.me/Zykolandstore"),
                 InlineKeyboardButton(text="📢 Наш Канал", url="https://t.me/KotikNews_shop"),
+                InlineKeyboardButton(text="❌ Отмена", callback_data="cancel_support_action"),
             ],
-            [InlineKeyboardButton(text="🔙 Вернуться до котика в главное меню", callback_data="btn_back_to_kotik")],
+            [InlineKeyboardButton(text="🔙 Вернуться в главное меню", callback_data="btn_back_to_kotik")],
         ]
     )
     if isinstance(event, types.CallbackQuery):
@@ -753,6 +756,17 @@ async def handle_support(event: types.Message | types.CallbackQuery):
         await event.message.answer(support_text, parse_mode=ParseMode.HTML, reply_markup=kb)
     else:
         await event.answer(support_text, parse_mode=ParseMode.HTML, reply_markup=kb)
+
+
+@dp.callback_query(F.data == "cancel_support_action")
+async def handle_cancel_support(callback: types.CallbackQuery):
+    user_id = callback.from_user.id
+    user_support_state.pop(user_id, None)
+    await callback.answer("Обращение отменено")
+    try:
+        await callback.message.edit_text("🐾 Обращение в поддержку отменено. Вы в главном меню.")
+    except Exception:
+        pass
 
 
 @dp.message(F.text == "👤 Мой кабинет")
@@ -780,7 +794,7 @@ async def handle_cabinet(message: types.Message):
         reply_markup=InlineKeyboardMarkup(
             inline_keyboard=[
                 [InlineKeyboardButton(text="⚡ Открыть Kotik Store", web_app=WebAppInfo(url=WEBAPP_URL))],
-                [InlineKeyboardButton(text="🔙 Вернуться до котика в главное меню", callback_data="btn_back_to_kotik")],
+                [InlineKeyboardButton(text="🔙 Вернуться в главное меню", callback_data="btn_back_to_kotik")],
             ]
         ),
     )
@@ -801,13 +815,156 @@ async def handle_admin_stock(callback: types.CallbackQuery):
     await callback.answer()
 
     summary = db.get_stock_summary()
-    lines = ["📦 <b>Наличие товаров на складе:</b>\n"]
+    lines = [
+        "📦 <b>Склад и управление остатками</b>\n",
+        "Выберите товар ниже, чтобы пополнить его склад (текстом или .txt файлом):\n"
+    ]
+    buttons = []
     for item in summary:
         icon = "🟢" if item["count"] > 0 else "🔴"
         lines.append(f"{icon} <b>{item['title']}</b>: {item['count']} шт.")
+        buttons.append([
+            InlineKeyboardButton(
+                text=f"📥 Пополнить: {item['title']} ({item['count']} шт)",
+                callback_data=f"restock_prod_{item['id']}"
+            )
+        ])
 
-    lines.append("\n<i>Для загрузки новых ключей используйте Web-Админку.</i>")
-    await callback.message.answer("\n".join(lines), parse_mode=ParseMode.HTML)
+    buttons.append([InlineKeyboardButton(text="🔙 Назад в админку", callback_data="btn_admin_menu")])
+    kb = InlineKeyboardMarkup(inline_keyboard=buttons)
+    await callback.message.answer("\n".join(lines), parse_mode=ParseMode.HTML, reply_markup=kb)
+
+
+@dp.callback_query(F.data.startswith("restock_prod_"))
+async def handle_select_restock_product(callback: types.CallbackQuery):
+    admin_id = callback.from_user.id
+    if not db.is_staff(admin_id):
+        return
+
+    prod_id = callback.data.replace("restock_prod_", "")
+    prods = db.get_products_list()
+    prod_title = prod_id
+    for p in prods:
+        if p["id"] == prod_id:
+            prod_title = p["title"]
+            break
+
+    admin_session_state[admin_id] = {
+        "action": "restock",
+        "product_id": prod_id,
+        "title": prod_title,
+    }
+
+    await callback.answer()
+    msg = (
+        f"📥 <b>Пополнение склада: {prod_title}</b>\n\n"
+        f"Отправьте данные (ключи или <code>логин:пароль</code>):\n"
+        f"• <b>Текстовым сообщением</b> (каждый аккаунт с новой строки)\n"
+        f"• 📄 <b>Или пришлите .txt файл с базой</b>!\n\n"
+        f"<i>Бот автоматически разберет строки и добавит на склад.</i>"
+    )
+    kb = InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text="❌ Отмена", callback_data="cancel_admin_state")
+    ]])
+    await callback.message.answer(msg, parse_mode=ParseMode.HTML, reply_markup=kb)
+
+
+@dp.callback_query(F.data == "cancel_admin_state")
+async def handle_cancel_admin_state(callback: types.CallbackQuery):
+    admin_id = callback.from_user.id
+    admin_session_state.pop(admin_id, None)
+    await callback.answer("Действие отменено")
+    try:
+        await callback.message.edit_text("❌ Действие отменено. Возврат в админ-панель.")
+    except Exception:
+        pass
+    await handle_admin(callback.message)
+
+
+@dp.callback_query(F.data.startswith("alert_restock_"))
+async def handle_alert_restock_cb(callback: types.CallbackQuery, bot: Bot):
+    parts = callback.data.split("_")
+    # alert_restock_{prod_id}_{count}
+    prod_id = parts[2]
+    count = parts[3] if len(parts) > 3 else "10"
+
+    prods = db.get_products_list()
+    prod_title = prod_id
+    for p in prods:
+        if p["id"] == prod_id:
+            prod_title = p["title"]
+            break
+
+    await callback.answer("Рассылка запущена...")
+    try:
+        await callback.message.edit_reply_markup(reply_markup=None)
+    except Exception:
+        pass
+
+    users = db.get_all_user_ids()
+    sent = 0
+    msg = (
+        f"🔥 <b>Новое поступление на склад Kotik Store!</b>\n\n"
+        f"📦 <b>{prod_title}</b> снова в наличии (<b>+{count} шт.</b>)!\n\n"
+        f"⚡ <i>Успейте забрать подписку с моментальной автовыдачей 24/7!</i>"
+    )
+    kb = InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text="⚡ Открыть Kotik Store", web_app=WebAppInfo(url=WEBAPP_URL))
+    ]])
+
+    for uid in users:
+        try:
+            await bot.send_message(chat_id=uid, text=msg, parse_mode=ParseMode.HTML, reply_markup=kb)
+            sent += 1
+            await asyncio.sleep(0.04)
+        except Exception:
+            pass
+
+    await callback.message.answer(f"📢 Оповещение о товаре <b>{prod_title}</b> успешно отправлено {sent} пользователям!", parse_mode=ParseMode.HTML)
+
+
+# --- Ticket System Callbacks ---
+@dp.callback_query(F.data.startswith("ticket_reply_"))
+async def handle_ticket_reply_cb(callback: types.CallbackQuery):
+    admin_id = callback.from_user.id
+    if not db.is_staff(admin_id):
+        await callback.answer("Доступ запрещен!", show_alert=True)
+        return
+
+    parts = callback.data.split("_")
+    ticket_id = int(parts[2])
+    target_user_id = int(parts[3])
+
+    admin_session_state[admin_id] = {
+        "action": "reply_ticket",
+        "ticket_id": ticket_id,
+        "user_id": target_user_id,
+    }
+
+    await callback.answer()
+    kb = InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text="❌ Отмена", callback_data="cancel_admin_state")
+    ]])
+    await callback.message.answer(
+        f"✍️ <b>Ответ на тикет #T-{ticket_id} (ID: <code>{target_user_id}</code>)</b>\n\n"
+        f"Отправьте текст ответа следующим сообщением:",
+        parse_mode=ParseMode.HTML,
+        reply_markup=kb,
+    )
+
+
+@dp.callback_query(F.data.startswith("ticket_close_"))
+async def handle_ticket_close_cb(callback: types.CallbackQuery):
+    if not db.is_staff(callback.from_user.id):
+        return
+    parts = callback.data.split("_")
+    ticket_id = int(parts[2])
+    db.close_ticket(ticket_id)
+    await callback.answer(f"Тикет #T-{ticket_id} закрыт!")
+    try:
+        await callback.message.edit_text(callback.message.text + "\n\n<i>[✅ Тикет закрыт]</i>", parse_mode=ParseMode.HTML)
+    except Exception:
+        pass
 
 
 @dp.callback_query(F.data == "admin_staff")
@@ -1078,6 +1235,309 @@ async def handle_notify_deposit_api(request: web.Request):
         return web.json_response({"ok": False, "error": str(e)}, status=400)
 
 
+# =====================================================================
+# INCOMING MESSAGES (TICKETS & ADMIN RESTOCK TEXT / DOCUMENT)
+# =====================================================================
+@dp.message(F.document)
+async def handle_incoming_document(message: types.Message, bot: Bot):
+    user_id = message.from_user.id
+    if user_id in admin_session_state and admin_session_state[user_id].get("action") == "restock":
+        state = admin_session_state[user_id]
+        prod_id = state["product_id"]
+        prod_title = state["title"]
+        admin_session_state.pop(user_id, None)
+
+        try:
+            file_info = await bot.get_file(message.document.file_id)
+            import io
+            file_bytes = io.BytesIO()
+            await bot.download_file(file_info.file_path, destination=file_bytes)
+            file_bytes.seek(0)
+            text_content = file_bytes.read().decode("utf-8", errors="replace")
+            clean_lines = [l.strip() for l in text_content.splitlines() if l.strip()]
+
+            if not clean_lines:
+                await message.answer("⚠️ Файл пуст или не содержит строк с данными.")
+                return
+
+            added_count = db.bulk_add_stock(prod_id, clean_lines)
+            kb = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="📢 Да, оповестить пользователей", callback_data=f"alert_restock_{prod_id}_{added_count}")],
+                [InlineKeyboardButton(text="❌ Нет, без оповещения", callback_data="admin_stock")],
+            ])
+            await message.answer(
+                f"✅ <b>Файл успешно обработан!</b>\n\n"
+                f"📦 <b>Товар:</b> <b>{prod_title}</b>\n"
+                f"🔢 <b>Добавлено позиций:</b> <code>+{added_count} шт.</code>\n\n"
+                f"📢 <b>Желаете отправить оповещение пользователям о новом дропе?</b>",
+                parse_mode=ParseMode.HTML,
+                reply_markup=kb,
+            )
+        except Exception as e:
+            await message.answer(f"❌ Ошибка при чтении файла: {e}")
+
+
+@dp.message(F.text & ~F.text.startswith("/"))
+async def handle_incoming_text(message: types.Message, bot: Bot):
+    user_id = message.from_user.id
+
+    # 1. Check if admin is in active state (Restock or Reply Ticket)
+    if user_id in admin_session_state:
+        state = admin_session_state[user_id]
+        action = state.get("action")
+
+        if action == "reply_ticket":
+            ticket_id = state["ticket_id"]
+            target_user_id = state["user_id"]
+            admin_session_state.pop(user_id, None)
+
+            # Save to DB
+            db.add_ticket_message(ticket_id, "admin", user_id, message.text)
+
+            # Send to customer
+            user_msg = (
+                f"💬 <b>Ответ службы заботы Kotik Store (Тикет #T-{ticket_id}):</b>\n\n"
+                f"<i>{message.text}</i>\n\n"
+                f"🐾 <i>Если у вас остались вопросы, вы можете нажать «Поддержка» и написать снова.</i>"
+            )
+            try:
+                await bot.send_message(chat_id=target_user_id, text=user_msg, parse_mode=ParseMode.HTML)
+                await message.answer(f"✅ Ответ успешно доставлен клиенту (ID: <code>{target_user_id}</code>)!")
+            except Exception as e:
+                await message.answer(f"⚠️ Не удалось доставить сообщение клиенту: {e}")
+            return
+
+        elif action == "restock":
+            prod_id = state["product_id"]
+            prod_title = state["title"]
+            admin_session_state.pop(user_id, None)
+
+            raw_lines = message.text.splitlines()
+            clean_lines = [l.strip() for l in raw_lines if l.strip()]
+            if not clean_lines:
+                await message.answer("⚠️ Не обнаружено строк для добавления. Попробуйте снова.")
+                return
+
+            added_count = db.bulk_add_stock(prod_id, clean_lines)
+            kb = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="📢 Да, оповестить пользователей", callback_data=f"alert_restock_{prod_id}_{added_count}")],
+                [InlineKeyboardButton(text="❌ Нет, без оповещения", callback_data="admin_stock")],
+            ])
+            await message.answer(
+                f"✅ <b>Склад успешно пополнен!</b>\n\n"
+                f"📦 <b>Товар:</b> <b>{prod_title}</b>\n"
+                f"🔢 <b>Добавлено:</b> <code>+{added_count} шт.</code>\n\n"
+                f"📢 <b>Желаете отправить оповещение пользователям о новом дропе?</b>",
+                parse_mode=ParseMode.HTML,
+                reply_markup=kb,
+            )
+            return
+
+    # 2. Check if user is sending a support ticket
+    if user_support_state.get(user_id):
+        user_support_state.pop(user_id, None)
+        username = message.from_user.username or ""
+        ticket_id = db.create_ticket(user_id, username, message.text)
+
+        await message.answer(
+            f"✅ <b>Ваше обращение принято! (Тикет #T-{ticket_id})</b>\n\n"
+            f"Оператор службы заботы уже уведомлен и ответит вам прямо в этот диалог в течение нескольких минут. 🐾",
+            parse_mode=ParseMode.HTML,
+        )
+
+        # Notify admins
+        user_str = f"@{username.lstrip('@')}" if username else f"ID <code>{user_id}</code>"
+        now_str = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+        admin_alert = (
+            f"🎫 <b>[НОВОЕ ОБРАЩЕНИЕ В ПОДДЕРЖКУ #T-{ticket_id}]</b>\n\n"
+            f"👤 <b>От:</b> {user_str} (<code>{user_id}</code>)\n"
+            f"🕒 <b>Время:</b> {now_str}\n\n"
+            f"💬 <b>Вопрос / Проблема:</b>\n"
+            f"<i>{message.text}</i>"
+        )
+        admin_kb = InlineKeyboardMarkup(inline_keyboard=[
+            [
+                InlineKeyboardButton(text="✍️ Ответить пользователю", callback_data=f"ticket_reply_{ticket_id}_{user_id}"),
+                InlineKeyboardButton(text="✅ Закрыть тикет", callback_data=f"ticket_close_{ticket_id}"),
+            ]
+        ])
+        await notify_all_admins(bot, admin_alert)
+        return
+
+
+# =====================================================================
+# EXTENDED REST API (BROADCAST, COUPONS, QUESTS, EXPORT)
+# =====================================================================
+async def handle_api_broadcast(request: web.Request):
+    """POST /api/v1/broadcast"""
+    try:
+        data = await request.json()
+        text = data.get("text", "").strip()
+        photo_url = data.get("photo_url", "").strip()
+        btn_text = data.get("btn_text", "").strip()
+        btn_url = data.get("btn_url", "").strip()
+        lang_filter = data.get("lang", "all")
+
+        if not text:
+            return web.json_response({"ok": False, "error": "Текст рассылки пуст"}, status=400)
+
+        users = db.get_users_for_broadcast(lang_filter)
+        sent = 0
+
+        kb = None
+        if btn_text and btn_url:
+            if btn_url.startswith("webapp:"):
+                kb = InlineKeyboardMarkup(inline_keyboard=[[
+                    InlineKeyboardButton(text=btn_text, web_app=WebAppInfo(url=btn_url.replace("webapp:", "")))
+                ]])
+            else:
+                kb = InlineKeyboardMarkup(inline_keyboard=[[
+                    InlineKeyboardButton(text=btn_text, url=btn_url)
+                ]])
+
+        if bot_instance:
+            for u in users:
+                try:
+                    uid = u["telegram_id"]
+                    if photo_url:
+                        await bot_instance.send_photo(chat_id=uid, photo=photo_url, caption=text, parse_mode=ParseMode.HTML, reply_markup=kb)
+                    else:
+                        await bot_instance.send_message(chat_id=uid, text=text, parse_mode=ParseMode.HTML, reply_markup=kb)
+                    sent += 1
+                    await asyncio.sleep(0.04)
+                except Exception:
+                    pass
+
+        return web.json_response({"ok": True, "sent": sent, "total": len(users)})
+    except Exception as e:
+        logger.error(f"Broadcast API error: {e}")
+        return web.json_response({"ok": False, "error": str(e)}, status=400)
+
+
+async def handle_api_coupon_validate(request: web.Request):
+    """POST /api/v1/coupon/validate"""
+    try:
+        data = await request.json()
+        code = data.get("code", "")
+        coupon, err = db.validate_coupon(code)
+        if err:
+            return web.json_response({"ok": False, "error": err}, status=400)
+        return web.json_response({
+            "ok": True,
+            "code": coupon["code"],
+            "discount_percent": coupon["discount_percent"],
+        })
+    except Exception as e:
+        return web.json_response({"ok": False, "error": str(e)}, status=400)
+
+
+async def handle_api_coupons_list(request: web.Request):
+    """GET /api/v1/coupons"""
+    coupons = db.get_all_coupons()
+    return web.json_response({"ok": True, "coupons": coupons})
+
+
+async def handle_api_coupon_create(request: web.Request):
+    """POST /api/v1/coupon/create"""
+    try:
+        data = await request.json()
+        code = data.get("code", "")
+        disc = float(data.get("discount_percent", 10))
+        max_uses = int(data.get("max_uses", 500))
+        db.create_coupon(code, disc, max_uses)
+        return web.json_response({"ok": True})
+    except Exception as e:
+        return web.json_response({"ok": False, "error": str(e)}, status=400)
+
+
+async def handle_api_quests_list(request: web.Request):
+    """GET /api/v1/quests?user_id=..."""
+    try:
+        uid = int(request.query.get("user_id", 0))
+        quests = db.get_user_quests(uid)
+        return web.json_response({"ok": True, "quests": quests})
+    except Exception as e:
+        return web.json_response({"ok": False, "error": str(e)}, status=400)
+
+
+async def handle_api_quests_claim(request: web.Request):
+    """POST /api/v1/quests/claim"""
+    try:
+        data = await request.json()
+        uid = int(data.get("user_id", 0))
+        qid = data.get("quest_id", "")
+        ok, res = db.claim_quest_reward(uid, qid)
+        if not ok:
+            return web.json_response({"ok": False, "error": res}, status=400)
+        return web.json_response({"ok": True, "reward": res})
+    except Exception as e:
+        return web.json_response({"ok": False, "error": str(e)}, status=400)
+
+
+async def handle_api_export_orders_csv(request: web.Request):
+    """GET /api/v1/export/orders.csv"""
+    orders = db.export_all_orders()
+    import csv, io
+    output = io.StringIO()
+    output.write('\ufeff')  # UTF-8 BOM for Excel
+    writer = csv.writer(output, delimiter=';')
+    writer.writerow(["ID Заказа", "Дата", "ID Пользователя", "Username", "Товар", "Цена ($)", "Статус", "Выданный контент/ключ"])
+    for o in orders:
+        writer.writerow([
+            o["id"],
+            o["created_at"],
+            o["user_id"],
+            o["username"] or "",
+            o["product_title"],
+            f"{o['price']:.2f}",
+            o["status"],
+            o["item_content"] or "",
+        ])
+    csv_data = output.getvalue()
+    return web.Response(
+        text=csv_data,
+        content_type="text/csv",
+        headers={
+            "Content-Disposition": f"attachment; filename=kotikstore_orders_{datetime.now().strftime('%Y-%m-%d')}.csv"
+        }
+    )
+
+
+# --- Background Subscription Expiration Reminder Worker ---
+async def subscription_reminder_worker(bot: Bot):
+    """Periodically checks expiring subscriptions and notifies customers."""
+    while True:
+        try:
+            await asyncio.sleep(3600)  # Check every 1 hour
+            orders = db.get_expiring_orders()
+            now = datetime.now()
+            for o in orders:
+                exp_str = o.get("expires_at")
+                if not exp_str:
+                    continue
+                try:
+                    exp_dt = datetime.strptime(exp_str, "%Y-%m-%d %H:%M:%S")
+                    diff_days = (exp_dt - now).total_seconds() / 86400.0
+                    if 0 < diff_days <= 3.5:
+                        user_id = o["user_id"]
+                        title = o["product_title"]
+                        days_label = "3 дня" if diff_days > 1.5 else "24 часа"
+                        reminder_msg = (
+                            f"⏰ <b>Котик напоминает!</b>\n\n"
+                            f"Ваша подписка на <b>{title}</b> заканчивается через <b>{days_label}</b>.\n\n"
+                            f"⚡ Чтобы не прерывать доступ к вашим проектам, продлите подписку со скидкой 10% прямо сейчас по промокоду <code>KOTIK10</code> 👇"
+                        )
+                        kb = InlineKeyboardMarkup(inline_keyboard=[[
+                            InlineKeyboardButton(text="⚡ Продлить со скидкой", web_app=WebAppInfo(url=WEBAPP_URL))
+                        ]])
+                        await bot.send_message(chat_id=user_id, text=reminder_msg, parse_mode=ParseMode.HTML, reply_markup=kb)
+                        db.mark_order_reminder_sent(o["id"])
+                except Exception as e:
+                    logger.warning(f"Error checking reminder for order {o.get('id')}: {e}")
+        except Exception as e:
+            logger.error(f"Subscription reminder worker error: {e}")
+
+
 async def start_web_server():
     """Starts the internal webhook and REST API server."""
     app = web.Application(middlewares=[cors_middleware])
@@ -1091,6 +1551,15 @@ async def start_web_server():
     app.router.add_get("/api/v1/user/balance", handle_api_user_balance)
     app.router.add_post("/api/v1/order/create", handle_api_create_order)
     app.router.add_get("/api/v1/order/{id}", handle_api_get_order)
+
+    # New Extended REST Endpoints
+    app.router.add_post("/api/v1/broadcast", handle_api_broadcast)
+    app.router.add_post("/api/v1/coupon/validate", handle_api_coupon_validate)
+    app.router.add_get("/api/v1/coupons", handle_api_coupons_list)
+    app.router.add_post("/api/v1/coupon/create", handle_api_coupon_create)
+    app.router.add_get("/api/v1/quests", handle_api_quests_list)
+    app.router.add_post("/api/v1/quests/claim", handle_api_quests_claim)
+    app.router.add_get("/api/v1/export/orders.csv", handle_api_export_orders_csv)
 
     runner = web.AppRunner(app)
     await runner.setup()
@@ -1159,6 +1628,9 @@ async def main():
         await start_web_server()
     except Exception as e:
         logger.warning(f"Could not start background web server: {e}")
+
+    # Start background subscription reminder worker
+    asyncio.create_task(subscription_reminder_worker(bot_instance))
 
     await dp.start_polling(bot_instance)
 

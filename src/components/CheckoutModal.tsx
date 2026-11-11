@@ -49,9 +49,58 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string>('');
 
+  // Promo Code State
+  const [couponInput, setCouponInput] = useState<string>('');
+  const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discountPercent: number } | null>(null);
+  const [couponFeedback, setCouponFeedback] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
   if (!orderConfig) return null;
 
   const { product, option, duration, contact, totalPrice } = orderConfig;
+
+  // Calculate dynamic discounted price with promo code
+  const finalPrice = appliedCoupon
+    ? Math.max(0.5, Math.round(totalPrice * (1 - appliedCoupon.discountPercent / 100) * 100) / 100)
+    : totalPrice;
+
+  const discountSavings = Math.round((totalPrice - finalPrice) * 100) / 100;
+
+  const handleApplyCoupon = () => {
+    const cleanCode = couponInput.trim().toUpperCase();
+    if (!cleanCode) return;
+
+    // Standard pre-defined promo codes
+    const couponMap: Record<string, number> = {
+      KOTIK10: 10,
+      KOTIKNEWS: 15,
+      WELCOME: 5,
+      PREMIUM: 20,
+    };
+
+    if (couponMap[cleanCode]) {
+      haptic.success();
+      setAppliedCoupon({ code: cleanCode, discountPercent: couponMap[cleanCode] });
+      setCouponFeedback({
+        message: isEn
+          ? `Promo code ${cleanCode} applied! -${couponMap[cleanCode]}% discount`
+          : `Промокод ${cleanCode} применён! Скидка -${couponMap[cleanCode]}%`,
+        type: 'success',
+      });
+    } else {
+      haptic.warning();
+      setCouponFeedback({
+        message: isEn ? 'Invalid or expired promo code' : 'Неверный или недействительный промокод',
+        type: 'error',
+      });
+    }
+  };
+
+  const handleRemoveCoupon = () => {
+    haptic.light();
+    setAppliedCoupon(null);
+    setCouponInput('');
+    setCouponFeedback(null);
+  };
 
   const paymentMethods: {
     id: PaymentMethod;
@@ -67,7 +116,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         ? `Store Balance ($${userBalance.toFixed(2)})`
         : `Баланс магазина ($${userBalance.toFixed(2)})`,
       badge:
-        userBalance >= totalPrice
+        userBalance >= finalPrice
           ? isEn
             ? 'Sufficient'
             : 'Хватает'
@@ -76,15 +125,15 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
           : 'Недостаточно',
       icon: <Wallet className="w-5 h-5 text-pink-400" />,
       description:
-        userBalance >= totalPrice
+        userBalance >= finalPrice
           ? isEn
             ? 'Instant 1-click debit without fees'
             : 'Мгновенное списание в 1 клик без комиссий'
           : isEn
-          ? `Need +$${(totalPrice - userBalance).toFixed(2)}. Click to top up`
-          : `Не хватает $${(totalPrice - userBalance).toFixed(2)}. Нажмите, чтобы пополнить`,
+          ? `Need +$${(finalPrice - userBalance).toFixed(2)}. Click to top up`
+          : `Не хватает $${(finalPrice - userBalance).toFixed(2)}. Нажмите, чтобы пополнить`,
       badgeColor:
-        userBalance >= totalPrice
+        userBalance >= finalPrice
           ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
           : 'bg-red-500/20 text-red-400 border-red-500/30',
     },
@@ -142,7 +191,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
   const handleMethodSelect = (method: PaymentMethod) => {
     haptic.selection();
-    if (method === 'balance' && userBalance < totalPrice) {
+    if (method === 'balance' && userBalance < finalPrice) {
       // Trigger top-up
       onOpenTopUp();
       return;
@@ -153,7 +202,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
   const handlePay = () => {
     if (selectedMethod === 'balance') {
-      if (userBalance < totalPrice) {
+      if (userBalance < finalPrice) {
         haptic.warning();
         setErrorMsg(
           isEn
@@ -170,7 +219,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     // Simulate real payment checkout processing
     setTimeout(() => {
       if (selectedMethod === 'balance') {
-        onDeductBalance(totalPrice);
+        onDeductBalance(finalPrice);
       }
 
       haptic.success();
@@ -304,9 +353,20 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
             </div>
 
             <div className="text-right">
-              <div className="text-sm font-bold text-pink-400 font-mono">
-                ${totalPrice.toFixed(2)}
-              </div>
+              {appliedCoupon ? (
+                <div>
+                  <div className="text-xs text-white/40 line-through font-mono">
+                    ${totalPrice.toFixed(2)}
+                  </div>
+                  <div className="text-sm font-bold text-emerald-400 font-mono">
+                    ${finalPrice.toFixed(2)}
+                  </div>
+                </div>
+              ) : (
+                <div className="text-sm font-bold text-pink-400 font-mono">
+                  ${totalPrice.toFixed(2)}
+                </div>
+              )}
               <div className="text-[10px] text-white/40">{durationText}</div>
             </div>
           </div>
@@ -315,6 +375,72 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
             <div className="pt-2 border-t border-white/5 text-[11px] text-white/60 flex items-center justify-between">
               <span>{isEn ? 'Contact:' : 'Контакт:'}</span>
               <span className="font-mono text-cyan-300 font-medium">{contact}</span>
+            </div>
+          )}
+        </div>
+
+        {/* 🎟 Promo Code Box */}
+        <div className="mb-4 p-3 rounded-2xl bg-white/[0.03] border border-white/10">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-bold text-white/80 flex items-center gap-1.5">
+              <span>🎟</span>
+              <span>{isEn ? 'Have a promo code?' : 'Есть промокод?'}</span>
+            </span>
+            {appliedCoupon && (
+              <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                -{appliedCoupon.discountPercent}%
+              </span>
+            )}
+          </div>
+
+          {appliedCoupon ? (
+            <div className="flex items-center justify-between p-2 rounded-xl bg-emerald-950/30 border border-emerald-500/30">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                <span className="text-xs font-mono font-bold text-emerald-300">
+                  {appliedCoupon.code}
+                </span>
+                <span className="text-[11px] text-emerald-400/80">
+                  (-${discountSavings.toFixed(2)})
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={handleRemoveCoupon}
+                className="text-[11px] text-white/50 hover:text-white underline cursor-pointer"
+              >
+                {isEn ? 'Remove' : 'Удалить'}
+              </button>
+            </div>
+          ) : (
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={couponInput}
+                onChange={(e) => {
+                  setCouponInput(e.target.value);
+                  setCouponFeedback(null);
+                }}
+                placeholder={isEn ? 'e.g. KOTIKNEWS' : 'напр. KOTIKNEWS или KOTIK10'}
+                className="flex-1 px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-xs text-white placeholder-white/30 focus:outline-none focus:border-pink-500/50 uppercase font-mono"
+              />
+              <button
+                type="button"
+                onClick={handleApplyCoupon}
+                className="px-3.5 py-2 rounded-xl bg-pink-500 hover:bg-pink-400 active:scale-95 text-white font-bold text-xs shadow-md transition-all cursor-pointer"
+              >
+                {isEn ? 'Apply' : 'Применить'}
+              </button>
+            </div>
+          )}
+
+          {couponFeedback && (
+            <div
+              className={`mt-2 text-[11px] font-medium ${
+                couponFeedback.type === 'success' ? 'text-emerald-400' : 'text-red-400'
+              }`}
+            >
+              {couponFeedback.message}
             </div>
           )}
         </div>
@@ -407,7 +533,11 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
             </>
           ) : (
             <>
-              <span>{isEn ? `Pay $${totalPrice.toFixed(2)}` : `Оплатить $${totalPrice.toFixed(2)}`}</span>
+              <span>
+                {isEn
+                  ? `Pay $${finalPrice.toFixed(2)}`
+                  : `Оплатить $${finalPrice.toFixed(2)}`}
+              </span>
               <ChevronRight className="w-4 h-4" />
             </>
           )}

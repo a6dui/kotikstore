@@ -1,5 +1,5 @@
-import React from 'react';
-import { ArrowRight, Heart, Zap } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { ArrowRight, Heart, Clock } from 'lucide-react';
 import type { Product } from '../types';
 import type { Language } from '../utils/i18n';
 import { BrandIconRenderer } from './BrandIcons';
@@ -20,6 +20,30 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   onToggleFavorite,
   lang = 'ru',
 }) => {
+  const isEn = lang === 'en';
+
+  // Live countdown timer for Flash Deals (FOMO)
+  const [timeLeft, setTimeLeft] = useState<{ hours: number; minutes: number; seconds: number }>(() => ({
+    hours: product.flashSale?.hoursRemaining || 2,
+    minutes: 44,
+    seconds: 18,
+  }));
+
+  useEffect(() => {
+    if (!product.flashSale?.active) return;
+    const interval = setInterval(() => {
+      setTimeLeft((prev) => {
+        if (prev.seconds > 0) return { ...prev, seconds: prev.seconds - 1 };
+        if (prev.minutes > 0) return { ...prev, minutes: prev.minutes - 1, seconds: 59 };
+        if (prev.hours > 0) return { hours: prev.hours - 1, minutes: 59, seconds: 59 };
+        return prev;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [product.flashSale?.active]);
+
+  const formattedTimer = `${String(timeLeft.hours).padStart(2, '0')}:${String(timeLeft.minutes).padStart(2, '0')}:${String(timeLeft.seconds).padStart(2, '0')}`;
+
   const handleClick = () => {
     haptic.medium();
     onSelect(product);
@@ -95,14 +119,19 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           </div>
         </div>
 
-        {/* Flash Sale Banner if active */}
+        {/* Flash Sale FOMO Countdown Banner */}
         {product.flashSale?.active && (
-          <div className="mb-1.5 px-2 py-0.5 rounded-md bg-gradient-to-r from-amber-500/20 to-pink-500/20 border border-amber-500/30 flex items-center justify-between text-[9px] font-bold text-amber-300">
-            <span className="flex items-center gap-0.5">
-              <Zap className="w-2.5 h-2.5 fill-amber-400 text-amber-400" />
-              FLASH -{product.flashSale.discountPercent}%
+          <div className="mb-2 px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-950/70 via-pink-950/50 to-purple-950/60 border border-amber-500/40 flex items-center justify-between text-[10px] font-bold text-amber-300 shadow-[0_0_15px_rgba(245,158,11,0.2)]">
+            <span className="flex items-center gap-1.5 truncate pr-1">
+              <span className="animate-pulse">🔥</span>
+              <span className="truncate">
+                {isEn ? 'Only 3 left at special price!' : 'Осталось 3 аккаунта по спеццене!'}
+              </span>
             </span>
-            <span className="font-mono text-white/50">~{product.flashSale.hoursRemaining}ч</span>
+            <span className="font-mono text-white bg-black/60 px-1.5 py-0.5 rounded-md border border-amber-500/40 text-[9px] tracking-widest shrink-0 flex items-center gap-1 shadow-inner">
+              <Clock className="w-2.5 h-2.5 text-amber-400 animate-spin" style={{ animationDuration: '6s' }} />
+              {formattedTimer}
+            </span>
           </div>
         )}
 

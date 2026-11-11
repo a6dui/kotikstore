@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Calendar,
   Gift,
@@ -14,10 +14,29 @@ import {
   ChevronRight,
   Sparkles,
   Lock,
+  Target,
+  ExternalLink,
+  Share2,
 } from 'lucide-react';
 import type { TelegramUser, DailyStreakState, PolicyType } from '../types';
 import type { Language } from '../utils/i18n';
 import { triggerHaptic } from '../utils/telegram';
+
+interface QuestItem {
+  id: string;
+  title: string;
+  titleEn: string;
+  desc: string;
+  descEn: string;
+  reward: number;
+  icon: string;
+  target: number;
+  progress: number;
+  completed: boolean;
+  claimed: boolean;
+  actionUrl?: string;
+  actionType: 'channel' | 'share' | 'review' | 'order';
+}
 
 interface ProfileViewProps {
   user: TelegramUser | null;
@@ -25,6 +44,7 @@ interface ProfileViewProps {
   ordersCount: number;
   streakState: DailyStreakState;
   onClaimDailyReward: () => void;
+  onClaimQuestReward?: (questId: string, amount: number) => void;
   onOpenTopUp: () => void;
   onOpenPolicy: (type: PolicyType) => void;
   onOpenAdminAuth: () => void;
@@ -40,6 +60,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   ordersCount,
   streakState,
   onClaimDailyReward,
+  onClaimQuestReward,
   onOpenTopUp,
   onOpenPolicy,
   onOpenAdminAuth,
@@ -53,6 +74,134 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   const [copiedApiKey, setCopiedApiKey] = useState(false);
   const [apiKey, setApiKey] = useState('ktk_live_9f82d1a3c704e6b5');
   const [isPremium, setIsPremium] = useState(false);
+
+  // Quests & Bounties State
+  const [quests, setQuests] = useState<QuestItem[]>(() => {
+    const saved = localStorage.getItem('kotik_quests_v1');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {}
+    }
+    return [
+      {
+        id: 'quest_channel',
+        title: 'Подписка на канал @KotikNews_shop',
+        titleEn: 'Subscribe to @KotikNews_shop',
+        desc: 'Подпишитесь на новостной канал с дропами и скидками',
+        descEn: 'Subscribe to our official channel with drops & discounts',
+        reward: 0.50,
+        icon: '📢',
+        target: 1,
+        progress: 0,
+        completed: false,
+        claimed: false,
+        actionUrl: 'https://t.me/KotikNews_shop',
+        actionType: 'channel',
+      },
+      {
+        id: 'quest_invite_3',
+        title: 'Пригласи 3 друзей',
+        titleEn: 'Invite 3 Friends',
+        desc: 'Поделись ссылкой на бота с друзьями',
+        descEn: 'Share your referral link with friends',
+        reward: 1.00,
+        icon: '👥',
+        target: 3,
+        progress: 1,
+        completed: false,
+        claimed: false,
+        actionType: 'share',
+      },
+      {
+        id: 'quest_review',
+        title: 'Оставь отзыв с фото',
+        titleEn: 'Leave a Review with Photo',
+        desc: 'Напиши отзыв о покупке в канале отзывов',
+        descEn: 'Share your purchase review with a screenshot',
+        reward: 0.50,
+        icon: '⭐',
+        target: 1,
+        progress: 0,
+        completed: false,
+        claimed: false,
+        actionUrl: 'https://t.me/KotikNews_shop',
+        actionType: 'review',
+      },
+      {
+        id: 'quest_first_order',
+        title: 'Первая покупка в витрине',
+        titleEn: 'First Purchase in Store',
+        desc: 'Оформи любую подписку или ключ в магазине',
+        descEn: 'Buy any AI subscription or key in store',
+        reward: 1.00,
+        icon: '🛒',
+        target: 1,
+        progress: ordersCount >= 1 ? 1 : 0,
+        completed: ordersCount >= 1,
+        claimed: false,
+        actionType: 'order',
+      },
+    ];
+  });
+
+  // Save quests to localStorage
+  useEffect(() => {
+    localStorage.setItem('kotik_quests_v1', JSON.stringify(quests));
+  }, [quests]);
+
+  // Update order quest if order completed
+  useEffect(() => {
+    if (ordersCount >= 1) {
+      setQuests((prev) =>
+        prev.map((q) => (q.id === 'quest_first_order' ? { ...q, progress: 1, completed: true } : q))
+      );
+    }
+  }, [ordersCount]);
+
+  const handleQuestAction = (quest: QuestItem) => {
+    triggerHaptic('light');
+    if (quest.actionType === 'channel' || quest.actionType === 'review') {
+      window.open(quest.actionUrl || 'https://t.me/KotikNews_shop', '_blank');
+      setQuests((prev) =>
+        prev.map((q) => (q.id === quest.id ? { ...q, progress: 1, completed: true } : q))
+      );
+    } else if (quest.actionType === 'share') {
+      navigator.clipboard.writeText(referralLink);
+      setCopiedReferral(true);
+      setTimeout(() => setCopiedReferral(false), 2000);
+      setQuests((prev) =>
+        prev.map((q) => {
+          if (q.id === quest.id) {
+            const nextProgress = Math.min(q.target, q.progress + 1);
+            return {
+              ...q,
+              progress: nextProgress,
+              completed: nextProgress >= q.target,
+            };
+          }
+          return q;
+        })
+      );
+    } else if (quest.actionType === 'order') {
+      if (ordersCount >= 1) {
+        setQuests((prev) =>
+          prev.map((q) => (q.id === quest.id ? { ...q, progress: 1, completed: true } : q))
+        );
+      }
+    }
+  };
+
+  const handleClaimQuest = (quest: QuestItem) => {
+    if (!quest.completed || quest.claimed) return;
+    triggerHaptic('success');
+    setQuests((prev) =>
+      prev.map((q) => (q.id === quest.id ? { ...q, claimed: true } : q))
+    );
+    if (onClaimQuestReward) {
+      onClaimQuestReward(quest.id, quest.reward);
+    }
+  };
 
   const referralCode = user?.username ? user.username : 'kotik_user';
   const referralLink = `https://t.me/KotikStoreBot?start=ref_${referralCode}`;
@@ -125,6 +274,106 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
               </button>
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* 🎯 Задания и бонусы (Quests & Bounties) */}
+      <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-xl backdrop-blur-md space-y-3.5">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-fuchsia-500/20 border border-fuchsia-500/30 flex items-center justify-center text-fuchsia-400">
+              <Target className="w-4 h-4" />
+            </div>
+            <div>
+              <h3 className="text-sm font-extrabold text-white">
+                {isEn ? 'Quests & Bonuses' : 'Задания и награды'}
+              </h3>
+              <p className="text-[10px] text-white/50">
+                {isEn ? 'Complete tasks to earn free balance' : 'Выполняй задания и получай $ на баланс'}
+              </p>
+            </div>
+          </div>
+          <span className="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-fuchsia-500/15 border border-fuchsia-500/30 text-fuchsia-300">
+            {quests.filter((q) => q.claimed).length}/{quests.length} {isEn ? 'Done' : 'Готово'}
+          </span>
+        </div>
+
+        <div className="space-y-2 pt-1">
+          {quests.map((quest) => {
+            const isCompleted = quest.completed;
+            const isClaimed = quest.claimed;
+
+            return (
+              <div
+                key={quest.id}
+                className="flex items-center justify-between gap-3 p-3 rounded-2xl bg-white/[0.02] border border-white/5 hover:border-white/10 transition-all"
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <span className="text-xl shrink-0">{quest.icon}</span>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <h4 className="text-xs font-bold text-white truncate">
+                        {isEn ? quest.titleEn : quest.title}
+                      </h4>
+                      <span className="text-[10px] font-mono font-extrabold text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20 shrink-0">
+                        +${quest.reward.toFixed(2)}
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-white/40 truncate">
+                      {isEn ? quest.descEn : quest.desc}
+                    </p>
+                    {quest.target > 1 && (
+                      <div className="mt-1 flex items-center gap-1.5">
+                        <div className="w-20 h-1 bg-white/10 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-gradient-to-r from-cyan-400 to-fuchsia-500 rounded-full transition-all duration-300"
+                            style={{ width: `${Math.min(100, (quest.progress / quest.target) * 100)}%` }}
+                          />
+                        </div>
+                        <span className="text-[9px] font-mono text-white/40">
+                          {quest.progress}/{quest.target}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="shrink-0">
+                  {isClaimed ? (
+                    <span className="px-2.5 py-1 rounded-xl bg-white/5 border border-white/10 text-[10px] font-bold text-white/40 flex items-center gap-1">
+                      <Check className="w-3 h-3 text-emerald-400" />
+                      {isEn ? 'Claimed' : 'Получено'}
+                    </span>
+                  ) : isCompleted ? (
+                    <button
+                      onClick={() => handleClaimQuest(quest)}
+                      className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-500 text-black font-extrabold text-[11px] shadow-lg shadow-emerald-500/20 hover:brightness-110 active:scale-95 transition-all flex items-center gap-1 animate-pulse"
+                    >
+                      <Sparkles className="w-3 h-3 fill-black" />
+                      {isEn ? 'Claim' : 'Забрать'}
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => handleQuestAction(quest)}
+                      className="px-2.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 text-white font-bold text-[10px] active:scale-95 transition-all flex items-center gap-1"
+                    >
+                      {quest.actionType === 'share' ? (
+                        <>
+                          <Share2 className="w-3 h-3 text-cyan-400" />
+                          <span>{isEn ? 'Invite' : 'Позвать'}</span>
+                        </>
+                      ) : (
+                        <>
+                          <ExternalLink className="w-3 h-3 text-fuchsia-400" />
+                          <span>{isEn ? 'Go' : 'Перейти'}</span>
+                        </>
+                      )}
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
 

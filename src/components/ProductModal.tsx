@@ -11,6 +11,7 @@ import {
   Edit3,
   Trash2,
   Save,
+  Clock,
 } from 'lucide-react';
 import type { Product, ProductOption, DurationOption, Category } from '../types';
 import { getLocalizedProduct, type Language } from '../utils/i18n';
@@ -80,7 +81,31 @@ export const ProductModal: React.FC<ProductModalProps> = ({
     }
   }, [product]);
 
+  // Live countdown timer for Flash Deals (FOMO)
+  const [timeLeft, setTimeLeft] = useState<{ hours: number; minutes: number; seconds: number }>(() => ({
+    hours: product?.flashSale?.hoursRemaining || 2,
+    minutes: 44,
+    seconds: 18,
+  }));
+
+  useEffect(() => {
+    if (!product?.flashSale?.active) return;
+    const interval = setInterval(() => {
+      setTimeLeft((prev) => {
+        if (prev.seconds > 0) return { ...prev, seconds: prev.seconds - 1 };
+        if (prev.minutes > 0) return { ...prev, minutes: prev.minutes - 1, seconds: 59 };
+        if (prev.hours > 0) return { hours: prev.hours - 1, minutes: 59, seconds: 59 };
+        return prev;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [product?.flashSale?.active]);
+
+  const formattedTimer = `${String(timeLeft.hours).padStart(2, '0')}:${String(timeLeft.minutes).padStart(2, '0')}:${String(timeLeft.seconds).padStart(2, '0')}`;
+
   if (!product) return null;
+
+  const isEn = lang === 'en';
 
   // Localize for display if English
   const displayProduct = getLocalizedProduct(product, lang);
@@ -247,6 +272,22 @@ export const ProductModal: React.FC<ProductModalProps> = ({
             </button>
           </div>
         </div>
+
+        {/* Flash Sale FOMO Countdown Banner */}
+        {product.flashSale?.active && (
+          <div className="mb-3 p-2.5 rounded-2xl bg-gradient-to-r from-amber-950/70 via-pink-950/50 to-purple-950/60 border border-amber-500/40 flex items-center justify-between text-xs font-bold text-amber-300 shadow-[0_0_15px_rgba(245,158,11,0.2)]">
+            <span className="flex items-center gap-1.5 truncate pr-1">
+              <span className="animate-pulse">🔥</span>
+              <span className="truncate">
+                {isEn ? 'Only 3 accounts left at promo price!' : 'Осталось 3 аккаунта по спеццене!'}
+              </span>
+            </span>
+            <span className="font-mono text-white bg-black/60 px-2 py-0.5 rounded-md border border-amber-500/40 text-[10px] tracking-widest shrink-0 flex items-center gap-1 shadow-inner">
+              <Clock className="w-2.5 h-2.5 text-amber-400 animate-spin" style={{ animationDuration: '6s' }} />
+              {formattedTimer}
+            </span>
+          </div>
+        )}
 
         {/* Stock / Availability Banner */}
         <div className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-white/[0.03] border border-white/5 mb-3 text-[11px]">

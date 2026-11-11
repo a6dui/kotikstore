@@ -100,11 +100,85 @@ def init_db():
             item_content TEXT,
             price REAL,
             status TEXT DEFAULT 'active', -- 'active', 'refunded'
-            created_at TEXT
+            created_at TEXT,
+            expires_at TEXT,
+            reminder_sent INTEGER DEFAULT 0
         );
     """)
 
-    # 7. Settings Table
+    # Try migrate columns if table already existed
+    try:
+        cur.execute("ALTER TABLE orders ADD COLUMN expires_at TEXT")
+    except Exception:
+        pass
+    try:
+        cur.execute("ALTER TABLE orders ADD COLUMN reminder_sent INTEGER DEFAULT 0")
+    except Exception:
+        pass
+
+    # 7. Coupons / Promo Codes Table
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS coupons (
+            code TEXT PRIMARY KEY,
+            discount_percent REAL,
+            max_uses INTEGER DEFAULT 1000,
+            used_count INTEGER DEFAULT 0,
+            expires_at TEXT,
+            is_active INTEGER DEFAULT 1
+        );
+    """)
+
+    # 8. Quests & Bounties Tables
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS quests (
+            id TEXT PRIMARY KEY,
+            title TEXT,
+            description TEXT,
+            reward REAL,
+            icon TEXT,
+            action_url TEXT,
+            action_type TEXT,
+            target INTEGER DEFAULT 1
+        );
+    """)
+
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS user_quests (
+            user_id INTEGER,
+            quest_id TEXT,
+            progress INTEGER DEFAULT 0,
+            status TEXT DEFAULT 'available', -- 'available', 'completed', 'claimed'
+            completed_at TEXT,
+            claimed_at TEXT,
+            PRIMARY KEY (user_id, quest_id)
+        );
+    """)
+
+    # 9. Support Tickets System
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS tickets (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            username TEXT,
+            subject TEXT,
+            status TEXT DEFAULT 'open', -- 'open', 'answered', 'closed'
+            created_at TEXT,
+            closed_at TEXT
+        );
+    """)
+
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS ticket_messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ticket_id INTEGER,
+            sender_type TEXT, -- 'user' or 'admin'
+            sender_id INTEGER,
+            text TEXT,
+            sent_at TEXT
+        );
+    """)
+
+    # 10. Settings Table
     cur.execute("""
         CREATE TABLE IF NOT EXISTS settings (
             key TEXT PRIMARY KEY,
@@ -122,6 +196,31 @@ def init_db():
             INSERT INTO admins (telegram_id, username, name, role, added_at, added_by)
             VALUES (?, ?, ?, 'super_admin', ?, 'Система')
         """, (OWNER_TELEGRAM_ID, "kirabakuta", "Владелец (Owner)", now_str))
+
+    # Seed Default Coupons
+    default_coupons = [
+        ('KOTIK10', 10.0, 500),
+        ('KOTIKNEWS', 15.0, 1000),
+        ('WELCOME', 5.0, 2000),
+    ]
+    for ccode, cdisc, cmax in default_coupons:
+        cur.execute("""
+            INSERT OR IGNORE INTO coupons (code, discount_percent, max_uses, used_count, is_active)
+            VALUES (?, ?, ?, 0, 1)
+        """, (ccode, cdisc, cmax))
+
+    # Seed Default Quests
+    default_quests = [
+        ('quest_channel', 'Подпишись на резервный канал @KotikNews_shop', 'Эксклюзивные промокоды и свежие раздачи подписок', 0.50, '📢', 'https://t.me/KotikNews_shop', 'channel_sub', 1),
+        ('quest_invite_3', 'Пригласи 3 друзей в бота', 'Поделитесь своей реферальной ссылкой с 3 контактами', 1.00, '👥', '', 'invite_friends', 3),
+        ('quest_review', 'Оставь отзыв о сервисе с фото', 'Честное мнение о купленной подписке в разделе Отзывы', 0.50, '⭐', '', 'leave_review', 1),
+        ('quest_first_order', 'Соверши первую покупку', 'Оформите любой тариф на витрине Kotik Store', 1.00, '🛒', '', 'make_order', 1),
+    ]
+    for qid, qtitle, qdesc, qrew, qicon, qurl, qtype, qtarget in default_quests:
+        cur.execute("""
+            INSERT OR IGNORE INTO quests (id, title, description, reward, icon, action_url, action_type, target)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (qid, qtitle, qdesc, qrew, qicon, qurl, qtype, qtarget))
 
     # Seed Default Categories
     categories = [
@@ -461,6 +560,244 @@ def get_order_by_id(order_id: str):
     row = cur.fetchone()
     conn.close()
     return dict(row) if row else None
+
+
+# --- Bulk Stock Import ---
+def bulk_add_stock(product_id: str, items_list: list[str]) -> int:
+    """Adds multiple accounts/keys to warehouse for a given product."""
+    conn = get_connection()
+    cur = conn.cursor()
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    count = 0
+    for item in items_list:
+        content = item.strip()
+        if content:
+            cur.execute("""
+                INSERT INTO stock_items (product_id, content, added_at, is_sold)
+                VALUES (?, ?, ?, 0)
+            """, (product_id, content, now_str))
+            count += 1
+    conn.commit()
+    conn.close()
+    return count
+
+
+# --- Coupons / Promo Codes ---
+def validate_coupon(code: str):
+    """Validates coupon code, returns discount percent if valid."""
+    conn = get_connection()
+    cur = conn.cursor()
+    clean_code = code.strip().upper()
+    cur.execute("SELECT * FROM coupons WHERE code = ? AND is_active = 1", (clean_code,))
+    row = cur.fetchone()
+    conn.close()
+    if not row:
+        return None, "Промокод не найден или недействителен"
+    coupon = dict(row)
+    if coupon["used_count"] >= coupon["max_uses"]:
+        return None, "Лимит использований промокода исчерпан"
+    return coupon, None
+
+
+def use_coupon(code: str):
+    conn = get_connection()
+    cur = conn.cursor()
+    clean_code = code.strip().upper()
+    cur.execute("UPDATE coupons SET used_count = used_count + 1 WHERE code = ?", (clean_code,))
+    conn.commit()
+    conn.close()
+
+
+def get_all_coupons():
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM coupons ORDER BY discount_percent DESC")
+    rows = [dict(r) for r in cur.fetchall()]
+    conn.close()
+    return rows
+
+
+def create_coupon(code: str, discount_percent: float, max_uses: int = 500):
+    conn = get_connection()
+    cur = conn.cursor()
+    clean_code = code.strip().upper()
+    cur.execute("""
+        INSERT INTO coupons (code, discount_percent, max_uses, used_count, is_active)
+        VALUES (?, ?, ?, 0, 1)
+        ON CONFLICT(code) DO UPDATE SET discount_percent = excluded.discount_percent, max_uses = excluded.max_uses, is_active = 1
+    """, (clean_code, discount_percent, max_uses))
+    conn.commit()
+    conn.close()
+
+
+def delete_coupon(code: str):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM coupons WHERE code = ?", (code.strip().upper(),))
+    conn.commit()
+    conn.close()
+
+
+# --- Support Tickets ---
+def create_ticket(user_id: int, username: str, message_text: str):
+    conn = get_connection()
+    cur = conn.cursor()
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    cur.execute("""
+        INSERT INTO tickets (user_id, username, subject, status, created_at)
+        VALUES (?, ?, ?, 'open', ?)
+    """, (user_id, username or "", message_text[:60], now_str))
+    ticket_id = cur.lastrowid
+    cur.execute("""
+        INSERT INTO ticket_messages (ticket_id, sender_type, sender_id, text, sent_at)
+        VALUES (?, 'user', ?, ?, ?)
+    """, (ticket_id, user_id, message_text, now_str))
+    conn.commit()
+    conn.close()
+    return ticket_id
+
+
+def get_open_ticket(user_id: int):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM tickets WHERE user_id = ? AND status != 'closed' ORDER BY id DESC LIMIT 1", (user_id,))
+    row = cur.fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def get_ticket(ticket_id: int):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM tickets WHERE id = ?", (ticket_id,))
+    row = cur.fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def add_ticket_message(ticket_id: int, sender_type: str, sender_id: int, text: str):
+    conn = get_connection()
+    cur = conn.cursor()
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    cur.execute("""
+        INSERT INTO ticket_messages (ticket_id, sender_type, sender_id, text, sent_at)
+        VALUES (?, ?, ?, ?, ?)
+    """, (ticket_id, sender_type, sender_id, text, now_str))
+    new_status = 'answered' if sender_type == 'admin' else 'open'
+    cur.execute("UPDATE tickets SET status = ? WHERE id = ?", (new_status, ticket_id))
+    conn.commit()
+    conn.close()
+
+
+def close_ticket(ticket_id: int):
+    conn = get_connection()
+    cur = conn.cursor()
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    cur.execute("UPDATE tickets SET status = 'closed', closed_at = ? WHERE id = ?", (now_str, ticket_id))
+    conn.commit()
+    conn.close()
+
+
+def get_all_tickets():
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM tickets ORDER BY id DESC LIMIT 50")
+    rows = [dict(r) for r in cur.fetchall()]
+    conn.close()
+    return rows
+
+
+# --- Subscription Expiration Reminders ---
+def get_expiring_orders():
+    """Finds active orders where expiry reminder should be checked."""
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT * FROM orders
+        WHERE status = 'active'
+          AND reminder_sent = 0
+          AND expires_at IS NOT NULL
+    """)
+    rows = [dict(r) for r in cur.fetchall()]
+    conn.close()
+    return rows
+
+
+def mark_order_reminder_sent(order_id: str):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("UPDATE orders SET reminder_sent = 1 WHERE id = ?", (order_id,))
+    conn.commit()
+    conn.close()
+
+
+# --- Broadcast Users ---
+def get_users_for_broadcast(lang_filter: str = "all"):
+    conn = get_connection()
+    cur = conn.cursor()
+    if lang_filter in ("ru", "en"):
+        cur.execute("SELECT telegram_id, language FROM users WHERE language = ?", (lang_filter,))
+    else:
+        cur.execute("SELECT telegram_id, language FROM users")
+    rows = [dict(r) for r in cur.fetchall()]
+    conn.close()
+    return rows
+
+
+# --- Quests & Bounties ---
+def get_user_quests(user_id: int):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT q.*,
+               COALESCE(uq.progress, 0) as progress,
+               COALESCE(uq.status, 'available') as status
+        FROM quests q
+        LEFT JOIN user_quests uq ON q.id = uq.quest_id AND uq.user_id = ?
+    """, (user_id,))
+    rows = [dict(r) for r in cur.fetchall()]
+    conn.close()
+    return rows
+
+
+def claim_quest_reward(user_id: int, quest_id: str):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM quests WHERE id = ?", (quest_id,))
+    quest = cur.fetchone()
+    if not quest:
+        conn.close()
+        return False, "Задание не найдено"
+
+    reward = quest["reward"]
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    cur.execute("""
+        INSERT INTO user_quests (user_id, quest_id, progress, status, completed_at, claimed_at)
+        VALUES (?, ?, ?, 'claimed', ?, ?)
+        ON CONFLICT(user_id, quest_id) DO UPDATE SET status = 'claimed', claimed_at = excluded.claimed_at
+    """, (user_id, quest_id, quest["target"], now_str, now_str))
+
+    # Add reward to user balance
+    cur.execute("UPDATE users SET balance = balance + ? WHERE telegram_id = ?", (reward, user_id))
+    conn.commit()
+    conn.close()
+    return True, f"+${reward:.2f}"
+
+
+# --- Export All Orders ---
+def export_all_orders():
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT o.id, o.created_at, o.user_id, u.username, o.product_title, o.price, o.status, o.item_content
+        FROM orders o
+        LEFT JOIN users u ON o.user_id = u.telegram_id
+        ORDER BY o.created_at DESC
+    """)
+    rows = [dict(r) for r in cur.fetchall()]
+    conn.close()
+    return rows
 
 
 # Initialize DB on module import

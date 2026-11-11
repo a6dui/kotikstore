@@ -431,6 +431,21 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     URL.revokeObjectURL(url);
   };
 
+  const handleExportOrdersCSV = () => {
+    haptic.light();
+    const header = '\ufeffID заказа,Покупатель,Username,Товар,Тариф,Срок (мес),Сумма ($),Дата,Окончание,Статус\n';
+    const rows = orders.map((o) =>
+      `"${o.id}","${o.buyerName || ''}","${o.buyerUsername || ''}","${o.productTitle}","${o.optionName}","${o.months}","${o.totalPrice}","${o.date}","${o.expiresDate}","${o.status}"`
+    ).join('\n');
+    const blob = new Blob([header + rows], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `orders_export_kotikstore_${Date.now()}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   // 5. Coupon Actions
   const handleCreateCoupon = () => {
     if (!couponCode.trim()) return;
@@ -463,6 +478,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         : broadcastSegment === 'has_balance'
         ? 340
         : 180;
+
+    // Send to bot REST API if available
+    try {
+      fetch('http://localhost:8080/api/v1/broadcast', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: broadcastText,
+          target_lang: 'all',
+          admin_id: 755843448,
+        }),
+      }).catch(() => {});
+    } catch (e) {}
 
     setBroadcastSuccess(`Рассылка отправлена ${totalRecipients} пользователям! 🚀`);
     setBroadcastText('');
@@ -589,11 +617,21 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
           <div className="flex items-center gap-2">
             <button
-              onClick={handleExportStockCSV}
-              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-white/70 hover:text-white border border-white/10 text-xs font-semibold transition"
+              onClick={handleExportOrdersCSV}
+              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 text-xs font-semibold transition"
+              title="Экспорт всех заказов в CSV (Excel)"
             >
               <Download className="w-3.5 h-3.5" />
-              <span>CSV Отчет</span>
+              <span>CSV Заказы</span>
+            </button>
+
+            <button
+              onClick={handleExportStockCSV}
+              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-white/70 hover:text-white border border-white/10 text-xs font-semibold transition"
+              title="Экспорт остатков склада в CSV"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>CSV Склад</span>
             </button>
 
             <button
@@ -1258,10 +1296,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   </button>
 
                   <button
-                    onClick={handleExportStockCSV}
-                    className="px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white text-xs font-semibold"
+                    onClick={handleExportOrdersCSV}
+                    className="px-3 py-2.5 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 text-cyan-300 text-xs font-semibold"
+                    title="Экспорт заказов в Excel CSV"
                   >
-                    Экспорт остатков
+                    Экспорт заказов
+                  </button>
+
+                  <button
+                    onClick={handleExportStockCSV}
+                    className="px-3 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white text-xs font-semibold"
+                    title="Экспорт склада в CSV"
+                  >
+                    Экспорт склада
                   </button>
                 </div>
               </div>

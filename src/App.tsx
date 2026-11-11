@@ -419,6 +419,19 @@ export function App() {
     setActivities((prev) => [newAct, ...prev]);
   };
 
+  // Quest Reward Claim
+  const handleClaimQuestReward = (_questId: string, amount: number) => {
+    setBalance((prev) => parseFloat((prev + amount).toFixed(2)));
+    const newAct: AdminActivity = {
+      id: `act-${Date.now()}`,
+      user: `@${user.username || 'kotik_user'}`,
+      action: `Выполнил задание и получил бонус (+$${amount.toFixed(2)})`,
+      time: 'Только что',
+      type: 'topup',
+    };
+    setActivities((prev) => [newAct, ...prev]);
+  };
+
   // Submit Review
   const handleSubmitReview = (newRevData: Omit<Review, 'id' | 'createdAt' | 'sellerReply'>) => {
     const newReview: Review = {
@@ -617,6 +630,7 @@ export function App() {
               ordersCount={orders.length}
               streakState={streakState}
               onClaimDailyReward={handleClaimDailyReward}
+              onClaimQuestReward={handleClaimQuestReward}
               onOpenTopUp={() => setIsTopUpOpen(true)}
               onOpenPolicy={(type) => setActivePolicy(type)}
               onOpenAdminAuth={() => setIsAdminAuthOpen(true)}
