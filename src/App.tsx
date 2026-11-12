@@ -58,7 +58,7 @@ import { Heart, ShoppingBag } from 'lucide-react';
 
 // Storage migration to clean all legacy mock data to fresh 0 baseline
 const STORAGE_VERSION_KEY = 'kotik_storage_version';
-const CURRENT_STORAGE_VERSION = 'kotik_v5_zero_clean';
+const CURRENT_STORAGE_VERSION = 'kotik_v8_purge_all_reviews';
 
 if (typeof window !== 'undefined') {
   const currentVer = localStorage.getItem(STORAGE_VERSION_KEY);

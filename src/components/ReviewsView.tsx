@@ -45,9 +45,11 @@ export const ReviewsView: React.FC<ReviewsViewProps> = ({
             ))}
           </div>
           <div className="text-xs text-white/60 font-medium">
-            {lang === 'en'
-              ? `Based on ${reviews.length} verified reviews`
-              : `Основано на ${reviews.length} подтвержденных отзывах`}
+            {reviews.length === 0
+              ? (lang === 'en' ? 'No reviews yet • Be the first to leave one!' : 'Отзывов пока нет • Будьте первым, кто оставит отзыв!')
+              : (lang === 'en'
+                  ? `Based on ${reviews.length} verified reviews`
+                  : `Основано на ${reviews.length} подтвержденных отзывах`)}
           </div>
 
           <div className="mt-4 flex items-center justify-center gap-2">
@@ -107,11 +109,16 @@ export const ReviewsView: React.FC<ReviewsViewProps> = ({
       <div className="space-y-3">
         {filteredReviews.length === 0 ? (
           <div className="rounded-2xl border border-white/10 bg-white/5 p-8 text-center text-white/50 text-sm">
-            <MessageSquare className="w-8 h-8 mx-auto mb-2 opacity-40" />
-            <p>
+            <MessageSquare className="w-10 h-10 mx-auto mb-3 opacity-40 text-fuchsia-400" />
+            <p className="font-bold text-white/80 text-base">
               {lang === 'en'
-                ? 'No reviews in this category yet.'
-                : 'Отзывов в этой категории пока нет.'}
+                ? 'No reviews yet'
+                : 'Отзывов пока нет'}
+            </p>
+            <p className="text-xs text-white/40 mt-1 max-w-xs mx-auto">
+              {lang === 'en'
+                ? 'Be the first customer to leave an honest review with a photo!'
+                : 'Будьте первым покупателем, кто оставит честный отзыв с фото! За отзыв вы получите бонус на баланс 🐾'}
             </p>
           </div>
         ) : (
