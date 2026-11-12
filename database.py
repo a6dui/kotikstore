@@ -829,13 +829,95 @@ def get_all_users_detailed():
     conn = get_connection()
     cur = conn.cursor()
     cur.execute("""
-        SELECT u.telegram_id, u.username, u.first_name, u.balance, u.orders_count, u.total_spent, u.language, u.created_at
+        SELECT u.telegram_id, u.username, u.first_name, u.balance, u.orders_count, u.total_spent, u.language, u.created_at,
+               a.role as admin_role
         FROM users u
+        LEFT JOIN admins a ON u.telegram_id = a.telegram_id
         ORDER BY u.created_at DESC
     """)
-    rows = [dict(r) for r in cur.fetchall()]
+    rows = []
+    for r in cur.fetchall():
+        d = dict(r)
+        d["is_staff"] = bool(d.get("admin_role") or d["telegram_id"] == OWNER_TELEGRAM_ID or d["telegram_id"] == 7643717312)
+        if d["telegram_id"] == OWNER_TELEGRAM_ID:
+            d["admin_role"] = "super_admin"
+        elif d["telegram_id"] == 7643717312 and not d.get("admin_role"):
+            d["admin_role"] = "admin"
+        rows.append(d)
     conn.close()
     return rows
+
+
+def get_user_full_profile(telegram_id: int):
+    """Returns complete user profile including stats, roles, and order history."""
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM users WHERE telegram_id = ?", (telegram_id,))
+    user = cur.fetchone()
+    if not user:
+        conn.close()
+        return None
+    d = dict(user)
+
+    # Admin role check
+    cur.execute("SELECT role FROM admins WHERE telegram_id = ?", (telegram_id,))
+    admin_row = cur.fetchone()
+    if telegram_id == OWNER_TELEGRAM_ID:
+        d["role"] = "super_admin"
+        d["is_staff"] = True
+    elif admin_row:
+        d["role"] = admin_row["role"]
+        d["is_staff"] = True
+    elif telegram_id == 7643717312:
+        d["role"] = "admin"
+        d["is_staff"] = True
+    else:
+        d["role"] = "user"
+        d["is_staff"] = False
+
+    # Fetch user orders
+    cur.execute("""
+        SELECT id, product_id, product_title, price, item_content, status, created_at, expires_at
+        FROM orders
+        WHERE user_id = ?
+        ORDER BY created_at DESC
+    """, (telegram_id,))
+    d["orders"] = [dict(r) for r in cur.fetchall()]
+
+    conn.close()
+    return d
+
+
+def toggle_user_staff_role(telegram_id: int, requester_id: int = 0):
+    """Toggles admin role for a user."""
+    if telegram_id == OWNER_TELEGRAM_ID:
+        return False, "Нельзя изменить права главного владельца магазина"
+
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM admins WHERE telegram_id = ?", (telegram_id,))
+    existing = cur.fetchone()
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    if existing:
+        cur.execute("DELETE FROM admins WHERE telegram_id = ?", (telegram_id,))
+        cur.execute("UPDATE users SET role = 'user' WHERE telegram_id = ?", (telegram_id,))
+        conn.commit()
+        conn.close()
+        return True, "removed"
+    else:
+        cur.execute("SELECT username, first_name FROM users WHERE telegram_id = ?", (telegram_id,))
+        u = cur.fetchone()
+        uname = u["username"] if u and u["username"] else ""
+        fname = u["first_name"] if u and u["first_name"] else "Staff"
+        cur.execute("""
+            INSERT INTO admins (telegram_id, username, name, role, added_at, added_by)
+            VALUES (?, ?, ?, 'admin', ?, ?)
+        """, (telegram_id, uname, fname, now_str, str(requester_id)))
+        cur.execute("UPDATE users SET role = 'admin' WHERE telegram_id = ?", (telegram_id,))
+        conn.commit()
+        conn.close()
+        return True, "granted"
 
 
 def admin_adjust_user_balance(telegram_id: int, delta: float, reason: str = "Admin adjustment"):

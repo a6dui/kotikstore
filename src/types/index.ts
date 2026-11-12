@@ -68,6 +68,7 @@ export interface OrderItem {
   buyerName?: string;
   buyerUsername?: string;
   buyerId?: string;
+  userId?: string;
 }
 
 export type PaymentMethod =
@@ -144,9 +145,12 @@ export interface AdminUser {
   name: string;
   balance: number;
   ordersCount: number;
+  totalSpent?: number;
   status: 'active' | 'blocked';
   registeredAt: string;
-  role?: AdminRole;
+  role?: AdminRole | 'user';
+  language?: string;
+  isAdmin?: boolean;
 }
 
 export type ActiveView = 'shop' | 'orders' | 'reviews' | 'leaderboard' | 'wishlist' | 'profile' | 'admin';

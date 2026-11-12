@@ -243,6 +243,10 @@ export function App() {
             username: u.username ? `@${u.username}` : `id${u.telegram_id}`,
             balance: u.balance,
             ordersCount: u.orders_count,
+            totalSpent: u.total_spent || 0,
+            language: u.language || 'ru',
+            role: (u.telegram_id === 755843448 ? 'super_admin' : (u.admin_role || (u.is_staff ? 'admin' : 'user'))) as any,
+            isAdmin: Boolean(u.is_staff || u.admin_role || u.telegram_id === 755843448 || u.telegram_id === 7643717312),
             status: 'active',
             registeredAt: u.created_at || new Date().toISOString().split('T')[0],
           }));

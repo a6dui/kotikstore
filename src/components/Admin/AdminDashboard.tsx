@@ -14,6 +14,14 @@ import {
   CheckCircle2,
   Search,
   Flame,
+  User,
+  Shield,
+  Crown,
+  Copy,
+  Check,
+  Gift,
+  ChevronRight,
+  ArrowUpRight,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import type {
@@ -144,6 +152,265 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [userSearchQuery, setUserSearchQuery] = useState('');
   const [searchedUser, setSearchedUser] = useState<AdminUser | null>(null);
   const [adjustAmount, setAdjustAmount] = useState('');
+
+  // Interactive User Profile Modal & Management states
+  const [selectedUserProfile, setSelectedUserProfile] = useState<AdminUser | null>(null);
+  const [userProfileOrders, setUserProfileOrders] = useState<any[]>([]);
+  const [isLoadingProfileOrders, setIsLoadingProfileOrders] = useState<boolean>(false);
+  const [copiedTgId, setCopiedTgId] = useState(false);
+  const [copiedCredId, setCopiedCredId] = useState<string | null>(null);
+
+  // Profile Action states
+  const [profileBalDelta, setProfileBalDelta] = useState('');
+  const [profileBalReason, setProfileBalReason] = useState('Пополнение администратором');
+  const [isUpdatingBal, setIsUpdatingBal] = useState(false);
+  const [balFeedback, setBalFeedback] = useState('');
+
+  const [profileGrantProdId, setProfileGrantProdId] = useState(products[0]?.id || '');
+  const [profileGrantCreds, setProfileGrantCreds] = useState('');
+  const [isGranting, setIsGranting] = useState(false);
+  const [grantFeedback, setGrantFeedback] = useState('');
+
+  const [profileDmText, setProfileDmText] = useState('');
+  const [isSendingDm, setIsSendingDm] = useState(false);
+  const [dmFeedback, setDmFeedback] = useState('');
+
+  const [userFilterRole, setUserFilterRole] = useState<'all' | 'staff' | 'buyers' | 'balance'>('all');
+  const [userListSearch, setUserListSearch] = useState('');
+
+  const handleOpenUserProfile = async (u: AdminUser) => {
+    setSelectedUserProfile(u);
+    setBalFeedback('');
+    setGrantFeedback('');
+    setDmFeedback('');
+    setProfileBalDelta('');
+    setProfileDmText('');
+    setProfileGrantCreds('');
+    setProfileGrantProdId(products[0]?.id || '');
+    setIsLoadingProfileOrders(true);
+
+    const tgId = u.telegramId || parseInt(u.id.replace('usr-', ''));
+    if (tgId) {
+      try {
+        const res = await fetch(`http://localhost:8080/api/v1/admin/user/${tgId}/profile`);
+        const data = await res.json();
+        if (data.ok && data.profile) {
+          setUserProfileOrders(data.profile.orders || []);
+          setSelectedUserProfile((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  balance: data.profile.balance,
+                  ordersCount: data.profile.orders_count,
+                  totalSpent: data.profile.total_spent,
+                  role: data.profile.role,
+                  language: data.profile.language,
+                  isAdmin: data.profile.is_staff,
+                }
+              : null
+          );
+        } else {
+          const userOrders = orders.filter(
+            (o) => o.userId === u.id || o.userId === String(tgId) || o.buyerName === u.name
+          );
+          setUserProfileOrders(userOrders);
+        }
+      } catch {
+        const userOrders = orders.filter(
+          (o) => o.userId === u.id || o.userId === String(tgId) || o.buyerName === u.name
+        );
+        setUserProfileOrders(userOrders);
+      } finally {
+        setIsLoadingProfileOrders(false);
+      }
+    } else {
+      const userOrders = orders.filter((o) => o.userId === u.id || o.buyerName === u.name);
+      setUserProfileOrders(userOrders);
+      setIsLoadingProfileOrders(false);
+    }
+  };
+
+  const handleProfileAdjustBalance = async (deltaAmt?: number) => {
+    if (!selectedUserProfile) return;
+    const amount = deltaAmt !== undefined ? deltaAmt : parseFloat(profileBalDelta);
+    if (isNaN(amount) || amount === 0) {
+      setBalFeedback('⚠️ Введите корректную сумму');
+      return;
+    }
+    setIsUpdatingBal(true);
+    const tgId = selectedUserProfile.telegramId || parseInt(selectedUserProfile.id.replace('usr-', ''));
+    const newBal = Math.max(0, selectedUserProfile.balance + amount);
+
+    onUpdateUsers(users.map((usr) => (usr.id === selectedUserProfile.id ? { ...usr, balance: newBal } : usr)));
+    setSelectedUserProfile((prev) => (prev ? { ...prev, balance: newBal } : null));
+
+    if (tgId) {
+      try {
+        await fetch('http://localhost:8080/api/v1/admin/user/balance', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            telegram_id: tgId,
+            delta: amount,
+            reason: profileBalReason || 'Начисление администратором',
+          }),
+        });
+        setBalFeedback(`✅ Баланс изменен: ${amount >= 0 ? '+' : ''}$${amount.toFixed(2)} (текущий: $${newBal.toFixed(2)})`);
+      } catch {
+        setBalFeedback(`✅ Баланс изменен ($${newBal.toFixed(2)})`);
+      }
+    }
+    setIsUpdatingBal(false);
+    setProfileBalDelta('');
+  };
+
+  const handleProfileGrantProduct = async () => {
+    if (!selectedUserProfile || !profileGrantProdId) return;
+    const prod = products.find((p) => p.id === profileGrantProdId);
+    if (!prod) return;
+    setIsGranting(true);
+    const tgId = selectedUserProfile.telegramId || parseInt(selectedUserProfile.id.replace('usr-', ''));
+
+    try {
+      const res = await fetch('http://localhost:8080/api/v1/admin/user/grant', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          telegram_id: tgId,
+          product_id: prod.id,
+          credentials: profileGrantCreds.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (data.ok && data.order) {
+        setGrantFeedback(`🎉 Товар «${prod.title}» выдан! Заказ: ${data.order.order_id}`);
+        setUserProfileOrders((prev) => [
+          {
+            id: data.order.order_id,
+            product_title: data.order.product_title,
+            price: 0,
+            item_content: data.order.credentials,
+            status: 'completed',
+            created_at: new Date().toISOString().replace('T', ' ').slice(0, 19),
+            expires_at: data.order.expires_at,
+          },
+          ...prev,
+        ]);
+        setSelectedUserProfile((prev) => (prev ? { ...prev, ordersCount: prev.ordersCount + 1 } : null));
+        onUpdateUsers(
+          users.map((usr) => (usr.id === selectedUserProfile.id ? { ...usr, ordersCount: usr.ordersCount + 1 } : usr))
+        );
+      } else {
+        setGrantFeedback(`❌ Ошибка: ${data.error || 'Не удалось выдать'}`);
+      }
+    } catch (e: any) {
+      setGrantFeedback(`❌ Ошибка сети: ${e.message}`);
+    } finally {
+      setIsGranting(false);
+      setProfileGrantCreds('');
+    }
+  };
+
+  const handleProfileSendDm = async () => {
+    if (!selectedUserProfile || !profileDmText.trim()) return;
+    const tgId = selectedUserProfile.telegramId || parseInt(selectedUserProfile.id.replace('usr-', ''));
+    if (!tgId) {
+      setDmFeedback('⚠️ У пользователя отсутствует Telegram ID');
+      return;
+    }
+    setIsSendingDm(true);
+    try {
+      const res = await fetch('http://localhost:8080/api/v1/admin/user/message', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          telegram_id: tgId,
+          text: profileDmText.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setDmFeedback('✉️ Сообщение успешно доставлено пользователю в Telegram!');
+        setProfileDmText('');
+      } else {
+        setDmFeedback(`❌ Ошибка: ${data.error || 'Не удалось отправить'}`);
+      }
+    } catch (e: any) {
+      setDmFeedback(`❌ Ошибка отправки: ${e.message}`);
+    } finally {
+      setIsSendingDm(false);
+    }
+  };
+
+  const handleProfileToggleAdmin = async () => {
+    if (!selectedUserProfile) return;
+    const tgId = selectedUserProfile.telegramId || parseInt(selectedUserProfile.id.replace('usr-', ''));
+    if (!tgId) return;
+    if (tgId === 755843448) {
+      alert('Нельзя изменить права главного владельца магазина!');
+      return;
+    }
+    try {
+      const res = await fetch('http://localhost:8080/api/v1/admin/staff/toggle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ telegram_id: tgId }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        const isNowAdmin = data.action === 'granted';
+        setSelectedUserProfile((prev) =>
+          prev
+            ? {
+                ...prev,
+                isAdmin: isNowAdmin,
+                role: isNowAdmin ? 'admin' : 'user',
+              }
+            : null
+        );
+        onUpdateUsers(
+          users.map((usr) =>
+            usr.id === selectedUserProfile.id
+              ? {
+                  ...usr,
+                  isAdmin: isNowAdmin,
+                  role: isNowAdmin ? 'admin' : 'user',
+                }
+              : usr
+          )
+        );
+      }
+    } catch {}
+  };
+
+  const filteredUsersList = useMemo(() => {
+    let list = users;
+    if (userFilterRole === 'staff') {
+      list = list.filter(
+        (u) =>
+          u.isAdmin ||
+          u.role === 'admin' ||
+          u.role === 'super_admin' ||
+          u.telegramId === 755843448 ||
+          u.telegramId === 7643717312
+      );
+    } else if (userFilterRole === 'buyers') {
+      list = list.filter((u) => u.ordersCount > 0);
+    } else if (userFilterRole === 'balance') {
+      list = list.filter((u) => u.balance > 0);
+    }
+    if (userListSearch.trim()) {
+      const q = userListSearch.toLowerCase().trim();
+      list = list.filter(
+        (u) =>
+          (u.name || '').toLowerCase().includes(q) ||
+          (u.username || '').toLowerCase().includes(q) ||
+          String(u.telegramId || '').includes(q) ||
+          (u.id || '').toLowerCase().includes(q)
+      );
+    }
+    return list;
+  }, [users, userFilterRole, userListSearch]);
 
   // Filtered stock list memoized unconditionally
   const filteredStock = useMemo(() => {
@@ -565,44 +832,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     }
   };
 
-  const handleGrantProduct = (targetUser: AdminUser, productId: string) => {
-    haptic.success();
-    const prod = products.find((p) => p.id === productId);
-    if (!prod) return;
-    const tgId = targetUser.telegramId || parseInt(targetUser.id.replace('usr-', ''));
 
-    if (tgId) {
-      fetch('http://localhost:8080/api/v1/admin/user/grant', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          telegram_id: tgId,
-          product_id: productId,
-          credentials: '',
-        }),
-      }).catch(() => {});
-    }
-
-    const newOrd: OrderItem = {
-      id: `KOTIK-${Math.random().toString(36).substring(2, 9).toUpperCase()}`,
-      productId: prod.id,
-      productTitle: prod.title,
-      optionName: 'Выдача администратором',
-      months: 1,
-      totalPrice: 0,
-      date: new Date().toLocaleDateString('ru-RU'),
-      expiresDate: new Date(Date.now() + 30 * 86400000).toLocaleDateString('ru-RU'),
-      status: 'active',
-      loginData: `Выдано вручную администратором: ${prod.title}`,
-      instructions: [prod.instruction || ''],
-      brandColor: '#ec4899',
-      buyerName: targetUser.name,
-      buyerUsername: targetUser.username.replace('@', ''),
-      buyerId: String(tgId || targetUser.id),
-    };
-    onUpdateOrders([newOrd, ...orders]);
-    alert(`Товар «${prod.title}» успешно выдан пользователю ${targetUser.name}!`);
-  };
 
   const handleClearOrders = () => {
     if (!confirm('Вы уверены, что хотите удалить ВСЕ заказы из истории и базы?')) return;
@@ -1743,87 +1973,147 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 )}
               </div>
 
-              {/* All Registered Users List with Balance & Product Grants */}
+              {/* All Registered Users List with Interactive Profile Tapping */}
               <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/10 space-y-3">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
-                    <span>👥 База пользователей</span>
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
-                      {users.length} чел.
-                    </span>
-                  </h3>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                      <span>👥 Интерактивная база пользователей</span>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+                        {users.length} чел.
+                      </span>
+                    </h3>
+                    <p className="text-[11px] text-white/40 mt-0.5">
+                      Нажмите на любого пользователя, чтобы открыть полный профиль, историю покупок, выдать товар или написать в ЛС.
+                    </p>
+                  </div>
+
+                  {/* Filter chips */}
+                  <div className="flex items-center gap-1 overflow-x-auto no-scrollbar">
+                    {[
+                      { id: 'all', label: `Все (${users.length})` },
+                      { id: 'staff', label: '🛡️ Персонал' },
+                      { id: 'buyers', label: '🛍 Покупатели' },
+                      { id: 'balance', label: '💰 С балансом' },
+                    ].map((f) => (
+                      <button
+                        key={f.id}
+                        type="button"
+                        onClick={() => setUserFilterRole(f.id as any)}
+                        className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition whitespace-nowrap ${
+                          userFilterRole === f.id
+                            ? 'bg-pink-500 text-white shadow-sm'
+                            : 'bg-white/5 text-white/50 hover:text-white'
+                        }`}
+                      >
+                        {f.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
-                {users.length === 0 ? (
-                  <div className="p-4 text-center text-xs text-white/40">
-                    Пользователей пока нет в базе. Как только клиент нажмет /start в боте, он сразу появится здесь!
+                {/* Search Bar */}
+                <div className="relative">
+                  <Search className="w-3.5 h-3.5 text-white/40 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={userListSearch}
+                    onChange={(e) => setUserListSearch(e.target.value)}
+                    placeholder="Быстрый поиск по имени, @username или Telegram ID..."
+                    className="w-full pl-9 pr-3 py-2 rounded-xl bg-black/50 border border-white/10 text-xs text-white placeholder-white/30 focus:border-pink-500/50 outline-none transition"
+                  />
+                  {userListSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setUserListSearch('')}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white text-xs"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+
+                {filteredUsersList.length === 0 ? (
+                  <div className="p-6 text-center text-xs text-white/40 bg-black/20 rounded-xl border border-white/5">
+                    {userListSearch ? 'Ни один пользователь не найден по запросу.' : 'Пользователей пока нет в базе.'}
                   </div>
                 ) : (
-                  <div className="space-y-2 max-h-64 overflow-y-auto no-scrollbar">
-                    {users.map((u) => (
-                      <div
-                        key={u.id}
-                        className="p-3 rounded-xl bg-black/40 border border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs"
-                      >
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="font-bold text-white">{u.name}</span>
-                            <span className="text-cyan-400 font-mono text-[11px]">{u.username}</span>
+                  <div className="space-y-2 max-h-80 overflow-y-auto no-scrollbar">
+                    {filteredUsersList.map((u) => {
+                      const tgId = u.telegramId || parseInt(u.id.replace('usr-', ''));
+                      const isOwner = tgId === 755843448;
+                      const isAdmin = isOwner || u.isAdmin || u.role === 'admin' || u.role === 'super_admin' || tgId === 7643717312;
+                      return (
+                        <div
+                          key={u.id}
+                          onClick={() => handleOpenUserProfile(u)}
+                          className="p-3 rounded-2xl bg-black/40 hover:bg-white/[0.06] border border-white/5 hover:border-pink-500/40 cursor-pointer transition-all duration-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 group"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-pink-500/20 to-purple-600/30 border border-white/10 flex items-center justify-center shrink-0 group-hover:scale-105 transition">
+                              {isOwner ? (
+                                <Crown className="w-5 h-5 text-yellow-400" />
+                              ) : isAdmin ? (
+                                <Shield className="w-5 h-5 text-cyan-400" />
+                              ) : (
+                                <User className="w-5 h-5 text-pink-400" />
+                              )}
+                            </div>
+
+                            <div>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-bold text-white text-xs group-hover:text-pink-300 transition">
+                                  {u.name}
+                                </span>
+                                <span className="text-cyan-400 font-mono text-[11px]">
+                                  {u.username.startsWith('@') ? u.username : `@${u.username}`}
+                                </span>
+                                {isOwner && (
+                                  <span className="text-[9px] px-1.5 py-0.5 rounded bg-yellow-400/20 text-yellow-300 font-bold border border-yellow-400/30">
+                                    Владелец
+                                  </span>
+                                )}
+                                {!isOwner && isAdmin && (
+                                  <span className="text-[9px] px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/30">
+                                    Администратор
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-[10px] text-white/40 mt-0.5 flex items-center gap-2">
+                                <span>ID: <code className="text-white/70 font-mono">{tgId || u.id}</code></span>
+                                <span>•</span>
+                                <span>Заказов: <b className="text-white/70">{u.ordersCount}</b></span>
+                                <span>•</span>
+                                <span>Рег: {u.registeredAt || '—'}</span>
+                              </div>
+                            </div>
                           </div>
-                          <div className="text-[10px] text-white/40 mt-0.5">
-                            ID: <code className="text-white/60">{u.telegramId || u.id}</code> • Заказов: {u.ordersCount} • Рег: {u.registeredAt || '—'}
+
+                          <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                            <div className="text-right mr-1">
+                              <span className="font-mono font-black text-emerald-400 text-xs block">
+                                ${u.balance.toFixed(2)}
+                              </span>
+                              <span className="text-[9px] text-white/40 block font-mono">
+                                ~{Math.round(u.balance * 85)} ₽
+                              </span>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenUserProfile(u);
+                              }}
+                              className="px-3 py-1.5 rounded-xl bg-pink-500/20 hover:bg-pink-500 text-pink-300 hover:text-white border border-pink-500/30 text-xs font-bold transition flex items-center gap-1"
+                            >
+                              <span>Профиль</span>
+                              <ChevronRight className="w-3.5 h-3.5" />
+                            </button>
                           </div>
                         </div>
-
-                        <div className="flex items-center gap-2 shrink-0">
-                          <span className="font-mono font-bold text-emerald-400 px-2 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-xs">
-                            ${u.balance.toFixed(2)}
-                          </span>
-
-                          <button
-                            onClick={() => {
-                              const amtStr = prompt(`Введите сумму для начисления пользователю ${u.name} (например: 5 или -2):`, '5');
-                              if (amtStr) {
-                                const amt = parseFloat(amtStr);
-                                if (!isNaN(amt)) {
-                                  const newBal = Math.max(0, u.balance + amt);
-                                  onUpdateUsers(users.map((usr) => (usr.id === u.id ? { ...usr, balance: newBal } : usr)));
-                                  const tgId = u.telegramId || parseInt(u.id.replace('usr-', ''));
-                                  if (tgId) {
-                                    fetch('http://localhost:8080/api/v1/admin/user/balance', {
-                                      method: 'POST',
-                                      headers: { 'Content-Type': 'application/json' },
-                                      body: JSON.stringify({ telegram_id: tgId, delta: amt, reason: 'Начислено в Web-Админке' }),
-                                    }).catch(() => {});
-                                  }
-                                }
-                              }
-                            }}
-                            className="px-2.5 py-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 font-bold text-[11px] border border-emerald-500/30 transition"
-                            title="Выдать баланс"
-                          >
-                            💰 + Баланс
-                          </button>
-
-                          <button
-                            onClick={() => {
-                              const prodTitles = products.map((p, i) => `${i + 1}. ${p.title}`).join('\n');
-                              const choice = prompt(`Выберите товар для выдачи пользователю ${u.name}:\n\n${prodTitles}\n\nВведите номер товара (1-${products.length}):`, '1');
-                              if (choice) {
-                                const idx = parseInt(choice) - 1;
-                                if (idx >= 0 && idx < products.length) {
-                                  handleGrantProduct(u, products[idx].id);
-                                }
-                              }
-                            }}
-                            className="px-2.5 py-1.5 rounded-lg bg-fuchsia-500/20 hover:bg-fuchsia-500/30 text-fuchsia-300 font-bold text-[11px] border border-fuchsia-500/30 transition"
-                            title="Выдать товар"
-                          >
-                            🎁 Выдать товар
-                          </button>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -2009,6 +2299,376 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           )}
 
         </div>
+
+        {/* ================= USER PROFILE DETAIL MODAL ================= */}
+        {selectedUserProfile && (() => {
+          const u = selectedUserProfile;
+          const tgId = u.telegramId || parseInt(u.id.replace('usr-', ''));
+          const isOwner = tgId === 755843448;
+          const isAdmin = isOwner || u.isAdmin || u.role === 'admin' || u.role === 'super_admin' || tgId === 7643717312;
+          const rubBal = Math.round(u.balance * 85);
+          const rubSpent = Math.round((u.totalSpent || 0) * 85);
+          const rawUsername = u.username.replace('@', '');
+
+          return (
+            <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-5 animate-in fade-in duration-200">
+              <div className="bg-[#12121e] border border-white/15 rounded-3xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+                {/* Modal Header */}
+                <div className="p-5 border-b border-white/10 flex items-center justify-between bg-black/40">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-pink-500 to-purple-600 flex items-center justify-center text-white font-black text-lg shadow-lg">
+                      {isOwner ? <Crown className="w-6 h-6 text-yellow-300" /> : isAdmin ? <Shield className="w-6 h-6 text-white" /> : <User className="w-6 h-6 text-white" />}
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h2 className="text-base font-black text-white">{u.name}</h2>
+                        {rawUsername && (
+                          <a
+                            href={`https://t.me/${rawUsername}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-xs text-pink-400 font-mono hover:underline flex items-center gap-0.5"
+                          >
+                            <span>@{rawUsername}</span>
+                            <ArrowUpRight className="w-3 h-3" />
+                          </a>
+                        )}
+                        {isOwner ? (
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-yellow-400/20 text-yellow-300 font-bold border border-yellow-400/40">
+                            👑 Владелец
+                          </span>
+                        ) : isAdmin ? (
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/40">
+                            🛡️ Администратор
+                          </span>
+                        ) : (
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/10 text-white/70 font-bold border border-white/10">
+                            👤 Покупатель
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="text-xs text-white/50 font-mono">
+                          Telegram ID: <code className="text-white font-bold">{tgId || u.id}</code>
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText(String(tgId || u.id));
+                            setCopiedTgId(true);
+                            setTimeout(() => setCopiedTgId(false), 2000);
+                          }}
+                          className="px-2 py-0.5 rounded bg-white/5 hover:bg-white/10 text-white/70 hover:text-white text-[10px] font-mono flex items-center gap-1 transition"
+                        >
+                          {copiedTgId ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                          <span>{copiedTgId ? 'Скопировано!' : 'Копировать'}</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => setSelectedUserProfile(null)}
+                    className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-white/60 hover:text-white transition"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                {/* Modal Scrollable Body */}
+                <div className="flex-1 overflow-y-auto p-5 space-y-5 no-scrollbar">
+                  {/* Financial & Activity KPI Grid */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                    <div className="p-3 rounded-2xl bg-white/[0.03] border border-white/10">
+                      <span className="text-[10px] text-white/40 font-bold uppercase block">💰 Баланс</span>
+                      <div className="text-xl font-black text-emerald-400 font-mono mt-0.5">
+                        ${u.balance.toFixed(2)}
+                      </div>
+                      <span className="text-[10px] text-white/40 font-mono">~{rubBal.toLocaleString('ru-RU')} ₽</span>
+                    </div>
+
+                    <div className="p-3 rounded-2xl bg-white/[0.03] border border-white/10">
+                      <span className="text-[10px] text-white/40 font-bold uppercase block">💳 Потрачено</span>
+                      <div className="text-xl font-black text-white font-mono mt-0.5">
+                        ${(u.totalSpent || 0).toFixed(2)}
+                      </div>
+                      <span className="text-[10px] text-white/40 font-mono">~{rubSpent.toLocaleString('ru-RU')} ₽</span>
+                    </div>
+
+                    <div className="p-3 rounded-2xl bg-white/[0.03] border border-white/10">
+                      <span className="text-[10px] text-white/40 font-bold uppercase block">📦 Заказов</span>
+                      <div className="text-xl font-black text-cyan-400 font-mono mt-0.5">
+                        {u.ordersCount}
+                      </div>
+                      <span className="text-[10px] text-white/40">покупок</span>
+                    </div>
+
+                    <div className="p-3 rounded-2xl bg-white/[0.03] border border-white/10">
+                      <span className="text-[10px] text-white/40 font-bold uppercase block">📅 Регистрация</span>
+                      <div className="text-xs font-bold text-white/90 font-mono mt-1">
+                        {u.registeredAt ? u.registeredAt.split(' ')[0] : '—'}
+                      </div>
+                      <span className="text-[10px] text-white/40">
+                        {u.language === 'en' ? '🇬🇧 EN' : '🇷🇺 RU'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* ACTION SECTION 1: BALANCE ADJUSTMENT */}
+                  <div className="p-4 rounded-2xl bg-black/40 border border-white/10 space-y-3">
+                    <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+                      <span>💰 Корректировка баланса</span>
+                    </h3>
+
+                    {/* Quick Preset Buttons */}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-[10px] text-white/40 font-bold">Быстро:</span>
+                      {[
+                        { label: '+$1', val: 1 },
+                        { label: '+$5', val: 5 },
+                        { label: '+$10', val: 10 },
+                        { label: '+$25', val: 25 },
+                        { label: '-$5', val: -5 },
+                        { label: '-$10', val: -10 },
+                      ].map((btn) => (
+                        <button
+                          key={btn.label}
+                          type="button"
+                          disabled={isUpdatingBal}
+                          onClick={() => handleProfileAdjustBalance(btn.val)}
+                          className="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-white font-mono text-xs font-bold border border-white/5 transition"
+                        >
+                          {btn.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={profileBalDelta}
+                        onChange={(e) => setProfileBalDelta(e.target.value)}
+                        placeholder="Сумма ($)"
+                        className="w-full sm:w-32 px-3 py-2 rounded-xl bg-black/60 border border-white/10 text-xs text-white font-mono"
+                      />
+                      <input
+                        type="text"
+                        value={profileBalReason}
+                        onChange={(e) => setProfileBalReason(e.target.value)}
+                        placeholder="Причина (например: Бонус за активность)..."
+                        className="flex-1 px-3 py-2 rounded-xl bg-black/60 border border-white/10 text-xs text-white"
+                      />
+                      <button
+                        type="button"
+                        disabled={isUpdatingBal}
+                        onClick={() => handleProfileAdjustBalance()}
+                        className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white text-xs font-bold shrink-0 transition"
+                      >
+                        {isUpdatingBal ? 'Сохранение...' : 'Применить'}
+                      </button>
+                    </div>
+
+                    {balFeedback && (
+                      <span className="text-[11px] text-emerald-400 block font-bold">{balFeedback}</span>
+                    )}
+                  </div>
+
+                  {/* ACTION SECTION 2: MANUAL PRODUCT GRANT */}
+                  <div className="p-4 rounded-2xl bg-black/40 border border-white/10 space-y-3">
+                    <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+                      <span>🎁 Ручная выдача подписки / товара</span>
+                    </h3>
+
+                    <div className="space-y-2">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-[10px] text-white/40 block mb-1">Выберите товар:</label>
+                          <select
+                            value={profileGrantProdId}
+                            onChange={(e) => setProfileGrantProdId(e.target.value)}
+                            className="w-full px-3 py-2 rounded-xl bg-black/60 border border-white/10 text-xs text-white"
+                          >
+                            {products.map((p) => (
+                              <option key={p.id} value={p.id}>
+                                {p.title} (${(p.options[0]?.baseMonthlyPrice || 0).toFixed(2)})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="text-[10px] text-white/40 block mb-1">
+                            Данные доступа (login:pass или login:pass:2FA):
+                          </label>
+                          <input
+                            type="text"
+                            value={profileGrantCreds}
+                            onChange={(e) => setProfileGrantCreds(e.target.value)}
+                            placeholder="Оставьте пустым для автосписания со склада"
+                            className="w-full px-3 py-2 rounded-xl bg-black/60 border border-white/10 text-xs text-white font-mono"
+                          />
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        disabled={isGranting}
+                        onClick={handleProfileGrantProduct}
+                        className="w-full py-2.5 rounded-xl bg-gradient-to-r from-fuchsia-600 to-pink-500 text-white text-xs font-bold shadow-lg hover:brightness-110 transition flex items-center justify-center gap-1.5"
+                      >
+                        <Gift className="w-4 h-4" />
+                        <span>{isGranting ? 'Выдача товара...' : 'Выдать товар и уведомить пользователя в Telegram'}</span>
+                      </button>
+
+                      {grantFeedback && (
+                        <span className="text-[11px] text-fuchsia-300 block font-bold">{grantFeedback}</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* ACTION SECTION 3: DIRECT MESSAGE IN TELEGRAM */}
+                  <div className="p-4 rounded-2xl bg-black/40 border border-white/10 space-y-2">
+                    <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+                      <span>✉️ Отправить личное сообщение пользователю</span>
+                    </h3>
+                    <p className="text-[11px] text-white/40">
+                      Сообщение будет отправлено от официального бота Kotik Store прямо в личный диалог с клиентом.
+                    </p>
+
+                    <div className="flex gap-2">
+                      <textarea
+                        rows={2}
+                        value={profileDmText}
+                        onChange={(e) => setProfileDmText(e.target.value)}
+                        placeholder="Напишите сообщение клиенту (например: Привет! Ваш запрос решен, приятного пользования)..."
+                        className="flex-1 px-3 py-2 rounded-xl bg-black/60 border border-white/10 text-xs text-white"
+                      />
+                      <button
+                        type="button"
+                        disabled={isSendingDm}
+                        onClick={handleProfileSendDm}
+                        className="px-4 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-white text-xs font-bold flex items-center justify-center gap-1.5 shrink-0 transition"
+                      >
+                        <Send className="w-4 h-4" />
+                        <span>{isSendingDm ? 'Отправка...' : 'Отправить'}</span>
+                      </button>
+                    </div>
+
+                    {dmFeedback && (
+                      <span className="text-[11px] text-cyan-300 block font-bold">{dmFeedback}</span>
+                    )}
+                  </div>
+
+                  {/* ACTION SECTION 4: STAFF PERMISSION TOGGLE */}
+                  {!isOwner && (
+                    <div className="p-3.5 rounded-2xl bg-white/[0.02] border border-white/5 flex items-center justify-between">
+                      <div>
+                        <span className="text-xs font-bold text-white block">Статус администратора</span>
+                        <span className="text-[10px] text-white/40">
+                          {isAdmin ? 'Пользователь имеет доступ к админ-панели' : 'Обычный клиент магазина'}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleProfileToggleAdmin}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition ${
+                          isAdmin
+                            ? 'bg-red-500/10 text-red-400 border-red-500/30 hover:bg-red-500/20'
+                            : 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30 hover:bg-cyan-500/20'
+                        }`}
+                      >
+                        {isAdmin ? '❌ Отозвать права админа' : '🛡️ Назначить администратором'}
+                      </button>
+                    </div>
+                  )}
+
+                  {/* SECTION 5: ORDERS HISTORY */}
+                  <div className="space-y-2 pt-2 border-t border-white/10">
+                    <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center justify-between">
+                      <span>📦 История покупок ({userProfileOrders.length} шт.)</span>
+                      {isLoadingProfileOrders && (
+                        <span className="text-[10px] text-pink-400 animate-pulse">Загрузка данных...</span>
+                      )}
+                    </h3>
+
+                    {userProfileOrders.length === 0 ? (
+                      <div className="p-5 text-center text-xs text-white/40 bg-black/20 rounded-xl border border-white/5">
+                        У пользователя пока нет заказов в истории.
+                      </div>
+                    ) : (
+                      <div className="space-y-2 max-h-60 overflow-y-auto no-scrollbar">
+                        {userProfileOrders.map((ord: any) => {
+                          const creds = ord.item_content || ord.credentials || '';
+                          const isCopied = copiedCredId === ord.id;
+                          return (
+                            <div
+                              key={ord.id}
+                              className="p-3 rounded-xl bg-black/60 border border-white/5 space-y-2 text-xs"
+                            >
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-bold text-white">
+                                    {ord.product_title || ord.productTitle}
+                                  </span>
+                                  <span className="text-[10px] font-mono text-pink-300">#{ord.id}</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className="font-mono font-bold text-emerald-400">
+                                    ${Number(ord.price || ord.totalPrice || 0).toFixed(2)}
+                                  </span>
+                                  <span className="text-[9px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30">
+                                    {ord.status === 'completed' || ord.status === 'active' ? 'Выполнен' : ord.status}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {creds && (
+                                <div className="p-2 rounded-lg bg-black/80 border border-white/5 flex items-center justify-between gap-2">
+                                  <code className="text-[11px] text-cyan-300 font-mono break-all select-all">
+                                    {creds}
+                                  </code>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(creds);
+                                      setCopiedCredId(ord.id);
+                                      setTimeout(() => setCopiedCredId(null), 2000);
+                                    }}
+                                    className="px-2 py-1 rounded bg-white/5 hover:bg-white/10 text-white/70 hover:text-white text-[10px] font-mono shrink-0 transition flex items-center gap-1"
+                                  >
+                                    {isCopied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                                    <span>{isCopied ? 'Скопировано!' : 'Копировать'}</span>
+                                  </button>
+                                </div>
+                              )}
+
+                              <div className="text-[10px] text-white/40 flex items-center justify-between">
+                                <span>Дата: {ord.created_at || ord.date}</span>
+                                {ord.expires_at && <span>Срок: до {ord.expires_at}</span>}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Modal Footer */}
+                <div className="p-4 border-t border-white/10 bg-black/40 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedUserProfile(null)}
+                    className="px-5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold transition"
+                  >
+                    Закрыть профиль
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
       </div>
     </div>
   );

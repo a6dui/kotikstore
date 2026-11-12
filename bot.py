@@ -818,37 +818,72 @@ async def handle_admin_menu_cb(callback: types.CallbackQuery):
 
 
 # --- Admin: Users Management & Manual Grants ---
-@dp.callback_query(F.data == "admin_users_menu")
+@dp.callback_query(F.data.startswith("admin_users_menu") | F.data.startswith("admin_users_page_"))
 async def handle_admin_users_menu(callback: types.CallbackQuery):
     if not db.is_staff(callback.from_user.id):
         await callback.answer("Доступ запрещен!", show_alert=True)
         return
     await callback.answer()
 
+    page = 0
+    if callback.data.startswith("admin_users_page_"):
+        try:
+            page = int(callback.data.replace("admin_users_page_", ""))
+        except Exception:
+            page = 0
+
     users = db.get_all_users_detailed()
+    total_users = len(users)
+    per_page = 8
+    total_pages = max(1, (total_users + per_page - 1) // per_page)
+    page = max(0, min(page, total_pages - 1))
+
+    start_idx = page * per_page
+    end_idx = start_idx + per_page
+    page_users = users[start_idx:end_idx]
+
     lines = [
-        "👥 <b>База пользователей Kotik Store</b>\n",
-        f"Всего пользователей: <b>{len(users)}</b>\n",
-        "Выберите пользователя ниже для просмотра и ручной выдачи баланса или товара:\n"
+        "👥 <b>База пользователей Kotik Store</b>",
+        f"Всего клиентов в базе: <b>{total_users}</b> (Стр. {page + 1}/{total_pages})\n",
+        "<i>Нажмите на любого пользователя ниже, чтобы открыть его детальный профиль:</i>\n"
     ]
 
     buttons = []
-    for u in users[:10]:
+    for u in page_users:
         nick = f"@{u['username']}" if u.get('username') else (u.get('first_name') or f"ID:{u['telegram_id']}")
+        staff_badge = "👑 " if u['telegram_id'] == OWNER_TELEGRAM_ID else ("🛡 " if u.get('is_staff') else "👤 ")
+        bal_str = f"${u['balance']:.2f}"
+        orders_str = f"{u.get('orders_count', 0)} зак."
         buttons.append([
             InlineKeyboardButton(
-                text=f"👤 {nick} (${u['balance']:.2f})",
+                text=f"{staff_badge}{nick} | {bal_str} • {orders_str}",
                 callback_data=f"usr_card_{u['telegram_id']}"
             )
         ])
 
+    # Pagination row
+    nav_row = []
+    if page > 0:
+        nav_row.append(InlineKeyboardButton(text="⬅️ Пред", callback_data=f"admin_users_page_{page - 1}"))
+    if total_pages > 1:
+        nav_row.append(InlineKeyboardButton(text=f"📄 {page + 1}/{total_pages}", callback_data="noop_users_page"))
+    if page < total_pages - 1:
+        nav_row.append(InlineKeyboardButton(text="След ➡️", callback_data=f"admin_users_page_{page + 1}"))
+    if nav_row:
+        buttons.append(nav_row)
+
     buttons.append([
         InlineKeyboardButton(text="🔍 Найти по ID / Nick", callback_data="usr_search_prompt"),
-        InlineKeyboardButton(text="🔙 Назад в админку", callback_data="btn_admin_menu")
+        InlineKeyboardButton(text="🔙 В админку", callback_data="btn_admin_menu")
     ])
 
     kb = InlineKeyboardMarkup(inline_keyboard=buttons)
     await callback.message.answer("\n".join(lines), parse_mode=ParseMode.HTML, reply_markup=kb)
+
+
+@dp.callback_query(F.data == "noop_users_page")
+async def handle_noop_page(callback: types.CallbackQuery):
+    await callback.answer()
 
 
 @dp.callback_query(F.data == "usr_search_prompt")
@@ -859,7 +894,7 @@ async def handle_usr_search_prompt(callback: types.CallbackQuery):
     admin_session_state[admin_id] = {"action": "enter_user_search"}
     await callback.answer()
     kb = InlineKeyboardMarkup(inline_keyboard=[[
-        InlineKeyboardButton(text="❌ Отмена", callback_data="cancel_admin_state")
+        InlineKeyboardButton(text="❌ Отмена", callback_data="admin_users_menu")
     ]])
     await callback.message.answer(
         "🔍 <b>Поиск пользователя</b>\n\n"
@@ -876,34 +911,159 @@ async def handle_admin_user_card(callback: types.CallbackQuery):
         return
     await callback.answer()
     uid = int(callback.data.replace("usr_card_", ""))
-    u = db.get_user(uid)
-    if not u:
+    p = db.get_user_full_profile(uid)
+    if not p:
         await callback.message.answer("⚠️ Пользователь не найден в базе данных.")
         return
 
-    nick = f"@{u['username']}" if u.get('username') else (u.get('first_name') or "—")
-    card_text = (
-        f"👤 <b>Пользователь: {nick}</b>\n\n"
-        f"• Telegram ID: <code>{u['telegram_id']}</code>\n"
-        f"• Имя: <b>{u.get('first_name') or '—'}</b>\n"
-        f"• Баланс: <b>${u['balance']:.2f}</b>\n"
-        f"• Всего заказов: <b>{u['orders_count']}</b>\n"
-        f"• Язык: <b>{u.get('language', 'ru').upper()}</b>\n"
-        f"• Дата регистрации: <b>{u.get('created_at', '—')}</b>\n\n"
-        f"<i>Выберите действие для пользователя:</i>"
-    )
+    nick = f"@{p['username']}" if p.get('username') else (p.get('first_name') or "—")
+    rub_rate = 85.0
+    rub_bal = round(p['balance'] * rub_rate)
+    rub_spent = round(p.get('total_spent', 0.0) * rub_rate)
 
-    kb = InlineKeyboardMarkup(inline_keyboard=[
+    if uid == OWNER_TELEGRAM_ID:
+        role_label = "👑 Главный Владелец (Owner)"
+    elif p.get("is_staff"):
+        role_label = "🛡️ Администратор"
+    else:
+        role_label = "👤 Покупатель"
+
+    lang_label = "🇷🇺 Русский" if p.get("language") != "en" else "🇬🇧 English"
+
+    card_lines = [
+        "👤 <b>Личное дело пользователя</b>",
+        "━━━━━━━━━━━━━━━━━━━━",
+        f"🆔 <b>Telegram ID:</b> <code>{p['telegram_id']}</code>",
+        f"👤 <b>Ник:</b> {nick}",
+        f"📛 <b>Имя:</b> <b>{p.get('first_name') or '—'}</b>",
+        f"🛡 <b>Статус:</b> <b>{role_label}</b>",
+        f"🌐 <b>Язык:</b> {lang_label}",
+        f"📅 <b>Регистрация:</b> <code>{p.get('created_at', '—')}</code>",
+        "",
+        f"💰 <b>Баланс:</b> <b>${p['balance']:.2f}</b> (<b>~{rub_bal:,} ₽</b>)",
+        f"🛍 <b>Всего покупок:</b> <b>{p.get('orders_count', 0)} шт.</b> на сумму <b>${p.get('total_spent', 0.0):.2f}</b> (~{rub_spent:,} ₽)",
+        "━━━━━━━━━━━━━━━━━━━━",
+    ]
+
+    orders = p.get("orders", [])
+    if orders:
+        card_lines.append(f"📦 <b>История заказов ({len(orders)} шт.):</b>")
+        for o in orders[:3]:
+            card_lines.append(f"• <b>{o['product_title']}</b> (${o['price']:.2f}) [<code>{o['id']}</code>]")
+            if o.get("item_content"):
+                card_lines.append(f"  🔑 <code>{o['item_content']}</code>")
+            card_lines.append(f"  📅 <i>{o['created_at']} • {o['status']}</i>")
+        if len(orders) > 3:
+            card_lines.append(f"<i>...и ещё {len(orders) - 3} заказов (нажмите кнопку ниже)</i>")
+    else:
+        card_lines.append("📦 <b>История заказов:</b> <i>Заказов пока нет</i>")
+
+    card_lines.append("━━━━━━━━━━━━━━━━━━━━")
+    card_lines.append("<i>Выберите действие для пользователя:</i>")
+
+    # Toggle admin button
+    if uid == OWNER_TELEGRAM_ID:
+        toggle_adm_btn = None
+    elif p.get("is_staff"):
+        toggle_adm_btn = InlineKeyboardButton(text="❌ Снять админку", callback_data=f"usr_toggle_adm_{uid}")
+    else:
+        toggle_adm_btn = InlineKeyboardButton(text="🛡️ Сделать админом", callback_data=f"usr_toggle_adm_{uid}")
+
+    buttons = [
         [
             InlineKeyboardButton(text="💰 Выдать баланс ($)", callback_data=f"usr_add_bal_{uid}"),
-            InlineKeyboardButton(text="🎁 Выдать товар/подписку", callback_data=f"usr_grant_prod_{uid}"),
+            InlineKeyboardButton(text="🎁 Выдать товар", callback_data=f"usr_grant_prod_{uid}"),
         ],
         [
-            InlineKeyboardButton(text="👥 К списку пользователей", callback_data="admin_users_menu"),
-            InlineKeyboardButton(text="🔙 В админку", callback_data="btn_admin_menu"),
+            InlineKeyboardButton(text="✉️ Написать в ЛС", callback_data=f"usr_dm_{uid}"),
         ]
+    ]
+    if toggle_adm_btn:
+        buttons[1].append(toggle_adm_btn)
+
+    if len(orders) > 3:
+        buttons.append([
+            InlineKeyboardButton(text=f"📦 Все заказы ({len(orders)} шт.)", callback_data=f"usr_orders_{uid}")
+        ])
+
+    buttons.append([
+        InlineKeyboardButton(text="👥 К списку пользователей", callback_data="admin_users_menu"),
+        InlineKeyboardButton(text="🔙 В админку", callback_data="btn_admin_menu"),
     ])
-    await callback.message.answer(card_text, parse_mode=ParseMode.HTML, reply_markup=kb)
+
+    kb = InlineKeyboardMarkup(inline_keyboard=buttons)
+    await callback.message.answer("\n".join(card_lines), parse_mode=ParseMode.HTML, reply_markup=kb)
+
+
+@dp.callback_query(F.data.startswith("usr_orders_"))
+async def handle_usr_all_orders(callback: types.CallbackQuery):
+    admin_id = callback.from_user.id
+    if not db.is_staff(admin_id):
+        return
+    await callback.answer()
+    uid = int(callback.data.replace("usr_orders_", ""))
+    p = db.get_user_full_profile(uid)
+    if not p:
+        await callback.message.answer("Пользователь не найден")
+        return
+
+    orders = p.get("orders", [])
+    lines = [
+        f"📦 <b>Все заказы пользователя ID <code>{uid}</code></b>\n",
+        f"Всего заказов: <b>{len(orders)} шт.</b>\n",
+        "━━━━━━━━━━━━━━━━━━━━"
+    ]
+    for idx, o in enumerate(orders, 1):
+        lines.append(f"<b>{idx}. {o['product_title']}</b> — ${o['price']:.2f}")
+        lines.append(f"• ID: <code>{o['id']}</code>")
+        if o.get("item_content"):
+            lines.append(f"• Доступ: <code>{o['item_content']}</code>")
+        lines.append(f"• Дата: {o['created_at']} • Статус: {o['status']}")
+        lines.append("")
+
+    kb = InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text="🔙 Назад к профилю", callback_data=f"usr_card_{uid}")
+    ]])
+    await callback.message.answer("\n".join(lines), parse_mode=ParseMode.HTML, reply_markup=kb)
+
+
+@dp.callback_query(F.data.startswith("usr_dm_"))
+async def handle_usr_dm_prompt(callback: types.CallbackQuery):
+    admin_id = callback.from_user.id
+    if not db.is_staff(admin_id):
+        return
+    await callback.answer()
+    uid = int(callback.data.replace("usr_dm_", ""))
+    admin_session_state[admin_id] = {
+        "action": "enter_dm_user",
+        "target_uid": uid,
+    }
+    kb = InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text="❌ Отмена", callback_data=f"usr_card_{uid}")
+    ]])
+    await callback.message.answer(
+        f"✉️ <b>Отправка сообщения в ЛС пользователю ID <code>{uid}</code></b>\n\n"
+        f"Введите текст сообщения следующим ответом в этот чат.\n"
+        f"<i>(Сообщение будет отправлено от лица бота Kotik Store прямо в диалог с пользователем)</i>",
+        parse_mode=ParseMode.HTML,
+        reply_markup=kb,
+    )
+
+
+@dp.callback_query(F.data.startswith("usr_toggle_adm_"))
+async def handle_usr_toggle_adm(callback: types.CallbackQuery):
+    admin_id = callback.from_user.id
+    if not db.is_staff(admin_id):
+        return
+    uid = int(callback.data.replace("usr_toggle_adm_", ""))
+    ok, res = db.toggle_user_staff_role(uid, admin_id)
+    if not ok:
+        await callback.answer(f"❌ {res}", show_alert=True)
+        return
+
+    action_text = "назначен администратором 🛡️" if res == "granted" else "снят с должности администратора 👤"
+    await callback.answer(f"Пользователь успешно {action_text}!", show_alert=True)
+    await handle_admin_user_card(callback)
 
 
 @dp.callback_query(F.data.startswith("usr_add_bal_"))
@@ -1723,6 +1883,42 @@ async def handle_incoming_text(message: types.Message, bot: Bot):
                 await message.answer("⚠️ Неверный формат. Введите число (например: 5 или 10.5).")
             return
 
+        elif action == "enter_dm_user":
+            target_uid = state["target_uid"]
+            admin_session_state.pop(user_id, None)
+            dm_text = message.text.strip()
+            if not dm_text:
+                await message.answer("⚠️ Текст сообщения пуст.")
+                return
+
+            try:
+                kb = InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text="💬 Поддержка", callback_data="btn_support")],
+                    [InlineKeyboardButton(text="⚡ Открыть Kotik Store", web_app=WebAppInfo(url=WEBAPP_URL))]
+                ])
+                await bot.send_message(
+                    chat_id=target_uid,
+                    text=(
+                        f"💬 <b>Сообщение от администрации Kotik Store</b>\n"
+                        f"━━━━━━━━━━━━━━━━━━━━\n"
+                        f"{dm_text}\n"
+                        f"━━━━━━━━━━━━━━━━━━━━\n"
+                        f"<i>Если у вас есть вопросы, нажмите кнопку «Поддержка» ниже.</i>"
+                    ),
+                    parse_mode=ParseMode.HTML,
+                    reply_markup=kb,
+                )
+                await message.answer(
+                    f"✅ <b>Сообщение успешно доставлено пользователю ID <code>{target_uid}</code>!</b>",
+                    parse_mode=ParseMode.HTML,
+                    reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+                        InlineKeyboardButton(text="👤 Вернуться к профилю", callback_data=f"usr_card_{target_uid}")
+                    ]])
+                )
+            except Exception as e:
+                await message.answer(f"❌ Не удалось доставить сообщение пользователю: {e}")
+            return
+
         elif action == "enter_user_search":
             query = message.text.strip().lstrip("@").lower()
             admin_session_state.pop(user_id, None)
@@ -2049,6 +2245,65 @@ async def handle_api_staff(request: web.Request):
         return web.json_response({"ok": False, "error": str(e)}, status=400)
 
 
+async def handle_api_admin_user_profile(request: web.Request):
+    """GET /api/v1/admin/user/{id}/profile - Returns full user profile with order history."""
+    try:
+        uid = int(request.match_info["id"])
+        profile = db.get_user_full_profile(uid)
+        if not profile:
+            return web.json_response({"ok": False, "error": "Пользователь не найден"}, status=404)
+        return web.json_response({"ok": True, "profile": profile})
+    except Exception as e:
+        return web.json_response({"ok": False, "error": str(e)}, status=400)
+
+
+async def handle_api_admin_user_message(request: web.Request):
+    """POST /api/v1/admin/user/message - Send direct PM from bot to user."""
+    try:
+        data = await request.json()
+        telegram_id = int(data.get("telegram_id"))
+        text = str(data.get("text", "")).strip()
+        if not text:
+            return web.json_response({"ok": False, "error": "Текст сообщения пуст"}, status=400)
+        if not bot_instance:
+            return web.json_response({"ok": False, "error": "Бот не активен"}, status=500)
+
+        msg_text = (
+            "💬 <b>Сообщение от администрации Kotik Store</b>\n"
+            "━━━━━━━━━━━━━━━━━━━━\n"
+            f"{text}\n"
+            "━━━━━━━━━━━━━━━━━━━━\n"
+            "<i>Если у вас есть вопросы, нажмите кнопку «Поддержка» ниже.</i>"
+        )
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="💬 Поддержка", callback_data="btn_support")],
+            [InlineKeyboardButton(text="⚡ Открыть Kotik Store", web_app=WebAppInfo(url=WEBAPP_URL))]
+        ])
+        await bot_instance.send_message(
+            chat_id=telegram_id,
+            text=msg_text,
+            parse_mode=ParseMode.HTML,
+            reply_markup=kb,
+        )
+        return web.json_response({"ok": True})
+    except Exception as e:
+        return web.json_response({"ok": False, "error": str(e)}, status=400)
+
+
+async def handle_api_admin_staff_toggle(request: web.Request):
+    """POST /api/v1/admin/staff/toggle - Toggle admin role for user."""
+    try:
+        data = await request.json()
+        telegram_id = int(data.get("telegram_id"))
+        requester_id = int(data.get("requester_id", 0))
+        success, res = db.toggle_user_staff_role(telegram_id, requester_id)
+        if not success:
+            return web.json_response({"ok": False, "error": res}, status=400)
+        return web.json_response({"ok": True, "action": res})
+    except Exception as e:
+        return web.json_response({"ok": False, "error": str(e)}, status=400)
+
+
 # --- Background Subscription Expiration Reminder Worker ---
 async def subscription_reminder_worker(bot: Bot):
     """Periodically checks expiring subscriptions and notifies customers."""
@@ -2113,6 +2368,9 @@ async def start_web_server():
     app.router.add_post("/api/v1/admin/user/grant", handle_api_admin_user_grant)
     app.router.add_post("/api/v1/admin/orders/clear", handle_api_admin_orders_clear)
     app.router.add_get("/api/v1/staff", handle_api_staff)
+    app.router.add_get("/api/v1/admin/user/{id}/profile", handle_api_admin_user_profile)
+    app.router.add_post("/api/v1/admin/user/message", handle_api_admin_user_message)
+    app.router.add_post("/api/v1/admin/staff/toggle", handle_api_admin_staff_toggle)
 
     runner = web.AppRunner(app)
     await runner.setup()
