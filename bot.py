@@ -533,8 +533,13 @@ async def handle_set_language(callback: types.CallbackQuery, bot: Bot):
 # --- /admin Command ---
 @dp.message(Command("admin"))
 @dp.message(F.text == "⚙️ Панель управления (/admin)")
-async def handle_admin(message: types.Message):
-    user_id = message.from_user.id
+async def handle_admin(message: types.Message, user_id: int | None = None):
+    if user_id is None:
+        if message.from_user and not message.from_user.is_bot:
+            user_id = message.from_user.id
+        else:
+            user_id = message.chat.id
+
     role = db.get_staff_role(user_id)
 
     if not role:
@@ -814,7 +819,7 @@ async def handle_cabinet(message: types.Message):
 @dp.callback_query(F.data == "btn_admin_menu")
 async def handle_admin_menu_cb(callback: types.CallbackQuery):
     await callback.answer()
-    await handle_admin(callback.message)
+    await handle_admin(callback.message, user_id=callback.from_user.id)
 
 
 # --- Admin: Users Management & Manual Grants ---
@@ -1218,7 +1223,7 @@ async def handle_admin_do_clear_orders(callback: types.CallbackQuery):
         "✅ <b>История заказов успешно очищена!</b>\nВсе заказы удалены из базы, счетчики покупок сброшены на 0.",
         parse_mode=ParseMode.HTML,
     )
-    await handle_admin(callback.message)
+    await handle_admin(callback.message, user_id=callback.from_user.id)
 
 
 # --- Admin: Edit Product Description & Instructions ---
@@ -1395,7 +1400,7 @@ async def handle_cancel_admin_state(callback: types.CallbackQuery):
         await callback.message.edit_text("❌ Действие отменено. Возврат в админ-панель.")
     except Exception:
         pass
-    await handle_admin(callback.message)
+    await handle_admin(callback.message, user_id=callback.from_user.id)
 
 
 @dp.callback_query(F.data.startswith("alert_restock_"))

