@@ -236,38 +236,46 @@ def init_db():
     products = [
         (
             'chatgpt-plus', 'ChatGPT Plus', 'text_code', 22.0, 16.0,
-            'Доступ к o1, GPT-4o, Canvas, Sora и DALL-E 3 без ограничений.',
-            'Вход на chatgpt.com с полученным логином и паролем.'
+            'Доступ к o1, GPT-4o, Canvas, Sora и DALL-E 3 без ограничений. Цена: $22 (1 870 ₽). Формат выдачи: login:pass (или login:pass:2FA).',
+            'Вход на chatgpt.com с полученным логином и паролем. Если в аккаунте указан 2FA-ключ, вставьте его на 2fa.live для генерации 6-значного кода.'
         ),
         (
             'gemini-advanced', 'Gemini Advanced', 'text_code', 10.0, 7.0,
-            'Gemini 2.5 Flash с контекстным окном в 2 000 000 токенов и 2ТБ Google Drive.',
-            'Примите инвайт в Google Family по отправленной ссылке.'
+            'Gemini 2.5 Flash с контекстом 2 000 000 токенов и 2ТБ Google Drive. Цена: $10 (850 ₽).',
+            'Примите инвайт в Google Family по отправленной ссылке или войдите по данным login:pass.'
         ),
         (
-            'claude-3-7-pro', 'Claude 3.7 Sonnet Pro', 'text_code', 24.0, 18.0,
-            'Модель №1 в мире для кодинга, рефакторинга и сложных логических рассуждений.',
-            'Вход на claude.ai через выданные учетные данные.'
+            'claude-cdk', 'Claude CDK', 'text_code', 26.0, 18.0,
+            'Claude CDK — подписка с доступом к Claude 3.7 Sonnet для разработчиков, API и кода. Цена: $26 (2 210 ₽). Формат выдачи: login:pass (или login:pass:2FA).',
+            'Вход на claude.ai по выданным данным: login:pass (или login:pass:2FA). При наличии 2FA сгенерируйте 6-значный код на сайте 2fa.live.'
+        ),
+        (
+            'claude-verify', 'Claude (Верификация под ключ)', 'text_code', 28.0, 20.0,
+            'Готовая зарубежная верификация аккаунта Claude под ключ с чистым IP. Цена: $28 (2 380 ₽). Формат выдачи: login:pass (или login:pass:2FA).',
+            'Выдается готовый верифицированный аккаунт формата login:pass (или login:pass:2FA). Аккаунт полностью готов к работе.'
         ),
         (
             'grok-ai', 'Grok AI (X Premium+)', 'text_code', 16.0, 12.0,
-            'Нейросеть без цензуры от Илона Маска. Генерация картинок FLUX.',
-            'Вход в аккаунт X с привязанной подпиской Premium+.'
+            'Нейросеть без цензуры от Илона Маска. Генерация картинок FLUX. Цена: $16 (1 360 ₽). Формат: login:pass (или login:pass:2FA).',
+            'Вход в аккаунт X с привязанной подпиской Premium+. Формат: login:pass (или login:pass:2FA).'
         ),
         (
             'elevenlabs', 'ElevenLabs Pro', 'voice_video', 6.0, 4.0,
-            'Идеальное клонирование голоса и аудио-генерация речи.',
-            'Используйте API ключ в настройках ElevenLabs.'
+            'Идеальное клонирование голоса и аудио-генерация речи. Цена: $6 (510 ₽). Формат: login:pass или API ключ.',
+            'Используйте данные login:pass или API ключ в настройках ElevenLabs.'
         ),
         (
             'capcut-pro', 'CapCut Pro', 'voice_video', 4.0, 2.5,
-            'Все PRO функции монтажа, умное удаление фона и эффекты.',
-            'Вход по выданным данным в мобильном или ПК клиенте.'
+            'Все PRO функции монтажа, умное удаление фона и эффекты. Цена: $4 (340 ₽). Формат: login:pass.',
+            'Вход по выданным данным login:pass в мобильном или ПК клиенте CapCut.'
         ),
     ]
+    cur.execute("DELETE FROM products WHERE id = 'claude-3-7-pro'")
+    cur.execute("DELETE FROM stock_items WHERE product_id = 'claude-3-7-pro'")
+
     for pid, ptitle, pcat, pprice, pcost, pdesc, pinstr in products:
         cur.execute("""
-            INSERT OR IGNORE INTO products (id, title, category_id, price, cost_price, description, instruction)
+            INSERT OR REPLACE INTO products (id, title, category_id, price, cost_price, description, instruction)
             VALUES (?, ?, ?, ?, ?, ?, ?)
         """, (pid, ptitle, pcat, pprice, pcost, pdesc, pinstr))
 
@@ -487,6 +495,22 @@ def update_product_db(product_id: str, title: str, category_id: str, price: floa
         SET title = ?, category_id = ?, price = ?, description = ?, instruction = ?
         WHERE id = ?
     """, (title, category_id, price, description, instruction, product_id))
+    conn.commit()
+    conn.close()
+
+
+def update_product_description(product_id: str, description: str):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("UPDATE products SET description = ? WHERE id = ?", (description.strip(), product_id))
+    conn.commit()
+    conn.close()
+
+
+def update_product_instruction(product_id: str, instruction: str):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("UPDATE products SET instruction = ? WHERE id = ?", (instruction.strip(), product_id))
     conn.commit()
     conn.close()
 

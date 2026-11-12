@@ -250,6 +250,25 @@ export function App() {
         }
       })
       .catch(() => {});
+
+    // Fetch real staff members from SQLite to ensure new admins have immediate access
+    fetch('http://localhost:8080/api/v1/staff')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.ok && Array.isArray(data.staff) && data.staff.length > 0) {
+          const mappedStaff: StaffMember[] = data.staff.map((s: any) => ({
+            telegramId: s.telegram_id,
+            username: s.username,
+            name: s.name,
+            role: s.role,
+            addedAt: s.added_at,
+            addedBy: s.added_by,
+          }));
+          setStaffList(mappedStaff);
+          localStorage.setItem('kotik_staff', JSON.stringify(mappedStaff));
+        }
+      })
+      .catch(() => {});
   }, []);
 
   // Sync state to localStorage

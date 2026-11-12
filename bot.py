@@ -218,7 +218,8 @@ def get_main_reply_keyboard(lang: str = "ru") -> ReplyKeyboardMarkup:
 def get_main_inline_keyboard(lang: str = "ru", is_staff: bool = False) -> InlineKeyboardMarkup:
     """Inline keyboard under the hero welcome message."""
     is_en = lang == "en"
-    webapp_url_with_lang = f"{WEBAPP_URL}?lang={lang}"
+    admin_param = "&admin=1" if is_staff else ""
+    webapp_url_with_lang = f"{WEBAPP_URL}?lang={lang}{admin_param}"
 
     buttons = [
         [
@@ -308,18 +309,21 @@ def get_admin_inline_keyboard(lang: str = "ru") -> InlineKeyboardMarkup:
             ],
             [
                 InlineKeyboardButton(text="📊 Склад и остатки", callback_data="admin_stock"),
+                InlineKeyboardButton(text="📝 Описание и Инструкции", callback_data="admin_edit_content"),
+            ],
+            [
                 InlineKeyboardButton(text="👥 Список персонала", callback_data="admin_staff"),
-            ],
-            [
                 InlineKeyboardButton(text="⚡ Переключить X2 Бонус", callback_data="admin_toggle_x2"),
-                InlineKeyboardButton(text="🗑 Очистить заказы", callback_data="admin_confirm_clear_orders"),
             ],
             [
+                InlineKeyboardButton(text="🗑 Очистить заказы", callback_data="admin_confirm_clear_orders"),
                 InlineKeyboardButton(text="🧪 Тест уведомлений", callback_data="admin_test_notify"),
+            ],
+            [
                 InlineKeyboardButton(
                     text="🔙 Вернуться в главное меню",
                     callback_data="btn_back_to_kotik",
-                ),
+                )
             ],
         ]
     )
@@ -364,12 +368,13 @@ async def handle_start(message: types.Message, bot: Bot):
     inline_kb = get_main_inline_keyboard(lang, is_admin)
 
     # Set Menu Button
+    admin_param = "&admin=1" if is_admin else ""
     try:
         await bot.set_chat_menu_button(
             chat_id=message.chat.id,
             menu_button=MenuButtonWebApp(
                 text="🐱 Kotik Store",
-                web_app=WebAppInfo(url=f"{WEBAPP_URL}?lang={lang}"),
+                web_app=WebAppInfo(url=f"{WEBAPP_URL}?lang={lang}{admin_param}"),
             ),
         )
     except Exception as e:
@@ -1056,6 +1061,109 @@ async def handle_admin_do_clear_orders(callback: types.CallbackQuery):
     await handle_admin(callback.message)
 
 
+# --- Admin: Edit Product Description & Instructions ---
+@dp.callback_query(F.data == "admin_edit_content")
+async def handle_admin_edit_content(callback: types.CallbackQuery):
+    if not db.is_staff(callback.from_user.id):
+        await callback.answer("Доступ запрещен!", show_alert=True)
+        return
+    await callback.answer()
+
+    prods = db.get_products_list()
+    lines = [
+        "📝 <b>Управление описанием и инструкциями товаров</b>\n",
+        "Выберите товар ниже для редактирования текста описания или инструкции к выдаче:\n"
+    ]
+    buttons = []
+    for p in prods:
+        buttons.append([
+            InlineKeyboardButton(
+                text=f"📝 {p['title']}",
+                callback_data=f"edit_content_{p['id']}"
+            )
+        ])
+    buttons.append([InlineKeyboardButton(text="🔙 Назад в админку", callback_data="btn_admin_menu")])
+    kb = InlineKeyboardMarkup(inline_keyboard=buttons)
+    await callback.message.answer("\n".join(lines), parse_mode=ParseMode.HTML, reply_markup=kb)
+
+
+@dp.callback_query(F.data.startswith("edit_content_"))
+async def handle_edit_product_content(callback: types.CallbackQuery):
+    if not db.is_staff(callback.from_user.id):
+        return
+    await callback.answer()
+    pid = callback.data.replace("edit_content_", "")
+    prods = db.get_products_list()
+    prod = next((p for p in prods if p["id"] == pid), None)
+    if not prod:
+        await callback.message.answer("⚠️ Товар не найден.")
+        return
+
+    text = (
+        f"📦 <b>Товар: {prod['title']}</b> (ID: <code>{prod['id']}</code>)\n"
+        f"💰 Цена: <b>${prod['price']:.2f}</b>\n\n"
+        f"📝 <b>Текущее описание:</b>\n<i>{prod.get('description') or 'Не указано'}</i>\n\n"
+        f"📘 <b>Текущая инструкция к выдаче:</b>\n<i>{prod.get('instruction') or 'Не указана'}</i>\n\n"
+        f"<i>Что вы хотите изменить?</i>"
+    )
+
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="✏️ Изменить описание", callback_data=f"do_edit_desc_{pid}"),
+            InlineKeyboardButton(text="📘 Изменить инструкцию", callback_data=f"do_edit_instr_{pid}"),
+        ],
+        [
+            InlineKeyboardButton(text="🔙 К списку товаров", callback_data="admin_edit_content"),
+            InlineKeyboardButton(text="🔙 В админку", callback_data="btn_admin_menu"),
+        ]
+    ])
+    await callback.message.answer(text, parse_mode=ParseMode.HTML, reply_markup=kb)
+
+
+@dp.callback_query(F.data.startswith("do_edit_desc_"))
+async def handle_do_edit_desc_cb(callback: types.CallbackQuery):
+    admin_id = callback.from_user.id
+    if not db.is_staff(admin_id):
+        return
+    pid = callback.data.replace("do_edit_desc_", "")
+    admin_session_state[admin_id] = {
+        "action": "edit_desc",
+        "product_id": pid,
+    }
+    await callback.answer()
+    kb = InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text="❌ Отмена", callback_data=f"edit_content_{pid}")
+    ]])
+    await callback.message.answer(
+        f"✏️ <b>Редактирование описания товара</b> (<code>{pid}</code>)\n\n"
+        f"Отправьте новый текст описания следующим сообщением в чат:",
+        parse_mode=ParseMode.HTML,
+        reply_markup=kb,
+    )
+
+
+@dp.callback_query(F.data.startswith("do_edit_instr_"))
+async def handle_do_edit_instr_cb(callback: types.CallbackQuery):
+    admin_id = callback.from_user.id
+    if not db.is_staff(admin_id):
+        return
+    pid = callback.data.replace("do_edit_instr_", "")
+    admin_session_state[admin_id] = {
+        "action": "edit_instr",
+        "product_id": pid,
+    }
+    await callback.answer()
+    kb = InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text="❌ Отмена", callback_data=f"edit_content_{pid}")
+    ]])
+    await callback.message.answer(
+        f"📘 <b>Редактирование инструкции к товару</b> (<code>{pid}</code>)\n\n"
+        f"Отправьте новый текст инструкции к выдаче следующим сообщением в чат:",
+        parse_mode=ParseMode.HTML,
+        reply_markup=kb,
+    )
+
+
 @dp.callback_query(F.data == "admin_stock")
 async def handle_admin_stock(callback: types.CallbackQuery):
     if not db.is_staff(callback.from_user.id):
@@ -1646,6 +1754,38 @@ async def handle_incoming_text(message: types.Message, bot: Bot):
             await message.answer("\n".join(lines), parse_mode=ParseMode.HTML, reply_markup=kb)
             return
 
+        elif action == "edit_desc":
+            prod_id = state["product_id"]
+            admin_session_state.pop(user_id, None)
+            new_desc = message.text.strip()
+            db.update_product_description(prod_id, new_desc)
+            kb = InlineKeyboardMarkup(inline_keyboard=[[
+                InlineKeyboardButton(text="🔙 К товару", callback_data=f"edit_content_{prod_id}")
+            ]])
+            await message.answer(
+                f"✅ <b>Описание товара <code>{prod_id}</code> успешно обновлено!</b>\n\n"
+                f"<i>{new_desc}</i>",
+                parse_mode=ParseMode.HTML,
+                reply_markup=kb,
+            )
+            return
+
+        elif action == "edit_instr":
+            prod_id = state["product_id"]
+            admin_session_state.pop(user_id, None)
+            new_instr = message.text.strip()
+            db.update_product_instruction(prod_id, new_instr)
+            kb = InlineKeyboardMarkup(inline_keyboard=[[
+                InlineKeyboardButton(text="🔙 К товару", callback_data=f"edit_content_{prod_id}")
+            ]])
+            await message.answer(
+                f"✅ <b>Инструкция к товару <code>{prod_id}</code> успешно обновлена!</b>\n\n"
+                f"<i>{new_instr}</i>",
+                parse_mode=ParseMode.HTML,
+                reply_markup=kb,
+            )
+            return
+
     # 2. Check if user is sending a support ticket
     if user_support_state.get(user_id):
         user_support_state.pop(user_id, None)
@@ -1900,6 +2040,15 @@ async def handle_api_admin_orders_clear(request: web.Request):
         return web.json_response({"ok": False, "error": str(e)}, status=400)
 
 
+async def handle_api_staff(request: web.Request):
+    """GET /api/v1/staff - Returns list of all staff/admins."""
+    try:
+        staff = db.get_all_admins()
+        return web.json_response({"ok": True, "staff": staff})
+    except Exception as e:
+        return web.json_response({"ok": False, "error": str(e)}, status=400)
+
+
 # --- Background Subscription Expiration Reminder Worker ---
 async def subscription_reminder_worker(bot: Bot):
     """Periodically checks expiring subscriptions and notifies customers."""
@@ -1963,6 +2112,7 @@ async def start_web_server():
     app.router.add_post("/api/v1/admin/user/balance", handle_api_admin_user_balance)
     app.router.add_post("/api/v1/admin/user/grant", handle_api_admin_user_grant)
     app.router.add_post("/api/v1/admin/orders/clear", handle_api_admin_orders_clear)
+    app.router.add_get("/api/v1/staff", handle_api_staff)
 
     runner = web.AppRunner(app)
     await runner.setup()

@@ -135,8 +135,9 @@ export const openTelegramOrWeb = (url: string) => {
   }
 };
 
-// Owner & Super Admin Telegram ID
+// Owner & Staff Telegram IDs
 export const DEFAULT_OWNER_ID = 755843448;
+export const HARDCODED_STAFF_IDS = ['755843448', '7643717312'];
 
 /**
  * Checks if a user is an authorized staff member (Admin or Moderator).
@@ -161,8 +162,8 @@ export const isStaffUser = (
 
   const idStr = String(userId).trim();
 
-  // Primary owner
-  if (idStr === String(DEFAULT_OWNER_ID)) {
+  // Primary owner or hardcoded authorized admins
+  if (HARDCODED_STAFF_IDS.includes(idStr)) {
     return true;
   }
 
@@ -181,6 +182,9 @@ export const getStaffRole = (
 
   if (idStr === String(DEFAULT_OWNER_ID)) {
     return 'super_admin';
+  }
+  if (idStr === '7643717312') {
+    return 'admin';
   }
 
   const member = staffList.find(
