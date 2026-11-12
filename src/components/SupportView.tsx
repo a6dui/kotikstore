@@ -35,7 +35,7 @@ export const SupportView: React.FC<SupportViewProps> = ({
   const [isRedeemed, setIsRedeemed] = useState<boolean>(false);
   const [copiedRef, setCopiedRef] = useState<boolean>(false);
 
-  const refLink = 'https://t.me/kotikstore_bot?start=ref_784920';
+  const refLink = 'https://t.me/Kot11kstore_bot?start=ref_784920';
 
   const faqs = [
     {

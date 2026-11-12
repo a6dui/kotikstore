@@ -204,7 +204,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   };
 
   const referralCode = user?.username ? user.username : 'kotik_user';
-  const referralLink = `https://t.me/KotikStoreBot?start=ref_${referralCode}`;
+  const referralLink = `https://t.me/Kot11kstore_bot?start=ref_${referralCode}`;
 
   const copyReferral = () => {
     triggerHaptic('success');
