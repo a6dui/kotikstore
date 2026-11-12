@@ -135,61 +135,51 @@ export const openTelegramOrWeb = (url: string) => {
   }
 };
 
-// Owner & Staff Telegram IDs
+// Owner & Staff Telegram IDs (Exclusively the Two Main Owners)
 export const DEFAULT_OWNER_ID = 755843448;
 export const HARDCODED_STAFF_IDS = ['755843448', '7643717312'];
 
 /**
- * Checks if a user is an authorized staff member (Admin or Moderator).
- * Regular users return false and will NEVER see the admin buttons.
+ * Checks if a user is one of the two authorized owners: 755843448 and 7643717312.
+ * Strictly blocks all other IDs and eliminates passcode prompts for the owners.
  */
 export const isStaffUser = (
   userId?: string | number,
-  staffList: StaffMember[] = []
+  _staffList: StaffMember[] = []
 ): boolean => {
-  // Check URL query param e.g. ?admin=1
-  if (typeof window !== 'undefined') {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get('admin') === '1' || params.get('admin') === 'true') {
-      return true;
-    }
-    if (localStorage.getItem('kotik_is_staff') === 'true') {
-      return true;
-    }
-  }
+  const tg = getTelegramWebApp();
+  const realTgId = tg?.initDataUnsafe?.user?.id ? String(tg.initDataUnsafe.user.id).trim() : '';
+  const passedId = userId ? String(userId).trim() : '';
+  const effectiveId = realTgId || passedId;
 
-  if (!userId) return false;
-
-  const idStr = String(userId).trim();
-
-  // Primary owner or hardcoded authorized admins
-  if (HARDCODED_STAFF_IDS.includes(idStr)) {
+  // If in Telegram WebApp or ID is available:
+  if (effectiveId && HARDCODED_STAFF_IDS.includes(effectiveId)) {
     return true;
   }
 
-  // Check staff list
-  return staffList.some(
-    (member) => String(member.telegramId).trim() === idStr
-  );
+  // In local browser dev testing outside Telegram WebApp:
+  if (typeof window !== 'undefined' && !realTgId) {
+    const params = new URLSearchParams(window.location.search);
+    const hasAdminParam = params.get('admin') === '1' || params.get('admin') === 'true';
+    if (hasAdminParam && (!passedId || HARDCODED_STAFF_IDS.includes(passedId) || passedId === '755843448')) {
+      return true;
+    }
+  }
+
+  return false;
 };
 
 export const getStaffRole = (
   userId?: string | number,
-  staffList: StaffMember[] = []
+  _staffList: StaffMember[] = []
 ): AdminRole | null => {
-  if (!userId) return null;
-  const idStr = String(userId).trim();
+  const tg = getTelegramWebApp();
+  const realTgId = tg?.initDataUnsafe?.user?.id ? String(tg.initDataUnsafe.user.id).trim() : '';
+  const idStr = realTgId || (userId ? String(userId).trim() : '');
 
-  if (idStr === String(DEFAULT_OWNER_ID)) {
+  if (HARDCODED_STAFF_IDS.includes(idStr)) {
     return 'super_admin';
   }
-  if (idStr === '7643717312') {
-    return 'admin';
-  }
-
-  const member = staffList.find(
-    (m) => String(m.telegramId).trim() === idStr
-  );
-  return member ? member.role : null;
+  return null;
 };
 

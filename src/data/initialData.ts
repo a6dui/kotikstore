@@ -375,17 +375,17 @@ export const INITIAL_COUPONS: Coupon[] = [
 export const INITIAL_STAFF: StaffMember[] = [
   {
     telegramId: 755843448,
-    username: 'kirabakuta',
-    name: 'Владелец (Owner)',
+    username: 'ZykoLandStore',
+    name: 'Дима (Главный Владелец)',
     role: 'super_admin',
     addedAt: '2026-11-10 01:00',
     addedBy: 'Система',
   },
   {
     telegramId: 7643717312,
-    username: 'user_7643717312',
-    name: 'Администратор',
-    role: 'admin',
+    username: 'lefomhn',
+    name: 'Главный Владелец',
+    role: 'super_admin',
     addedAt: '2026-11-12 19:20',
     addedBy: 'Владелец',
   },

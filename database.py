@@ -188,14 +188,19 @@ def init_db():
 
     conn.commit()
 
-    # Seed Default Staff (Primary Owner)
-    cur.execute("SELECT telegram_id FROM admins WHERE telegram_id = ?", (OWNER_TELEGRAM_ID,))
-    if not cur.fetchone():
-        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        cur.execute("""
-            INSERT INTO admins (telegram_id, username, name, role, added_at, added_by)
-            VALUES (?, ?, ?, 'super_admin', ?, 'Система')
-        """, (OWNER_TELEGRAM_ID, "kirabakuta", "Владелец (Owner)", now_str))
+    # Seed Default Staff (The Two Main Owners Exclusively)
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    cur.execute("""
+        INSERT INTO admins (telegram_id, username, name, role, added_at, added_by)
+        VALUES (755843448, 'ZykoLandStore', 'Дима (Владелец)', 'super_admin', ?, 'Система')
+        ON CONFLICT(telegram_id) DO UPDATE SET role = 'super_admin'
+    """, (now_str,))
+    cur.execute("""
+        INSERT INTO admins (telegram_id, username, name, role, added_at, added_by)
+        VALUES (7643717312, 'lefomhn', 'Владелец', 'super_admin', ?, 'Система')
+        ON CONFLICT(telegram_id) DO UPDATE SET role = 'super_admin'
+    """, (now_str,))
+    cur.execute("DELETE FROM admins WHERE telegram_id NOT IN (755843448, 7643717312)")
 
     # Seed Default Coupons
     default_coupons = [
@@ -348,23 +353,18 @@ def get_user_language(telegram_id: int) -> str:
 
 
 # --- Staff & Permissions Helpers ---
+EXCLUSIVE_ADMIN_IDS = (OWNER_TELEGRAM_ID, 755843448, 7643717312)
+
 def get_staff_role(telegram_id: int | str) -> str | None:
     try:
         tid = int(telegram_id)
     except Exception:
         return None
 
-    if tid in (OWNER_TELEGRAM_ID, 755843448):
+    if tid in EXCLUSIVE_ADMIN_IDS:
         return "super_admin"
-    if tid == 7643717312:
-        return "admin"
 
-    conn = get_connection()
-    cur = conn.cursor()
-    cur.execute("SELECT role FROM admins WHERE telegram_id = ?", (tid,))
-    row = cur.fetchone()
-    conn.close()
-    return row["role"] if row else None
+    return None
 
 
 def is_staff(telegram_id: int | str) -> bool:
@@ -372,9 +372,7 @@ def is_staff(telegram_id: int | str) -> bool:
         tid = int(telegram_id)
     except Exception:
         return False
-    if tid in (OWNER_TELEGRAM_ID, 755843448, 7643717312):
-        return True
-    return get_staff_role(tid) is not None
+    return tid in EXCLUSIVE_ADMIN_IDS
 
 
 def get_all_admins():

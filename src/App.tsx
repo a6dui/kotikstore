@@ -14,7 +14,6 @@ import { LeaderboardView } from './components/LeaderboardView';
 import { ProfileView } from './components/ProfileView';
 import { PolicyModal } from './components/PolicyModal';
 import { BottomNav } from './components/BottomNav';
-import { AdminAuthModal } from './components/Admin/AdminAuthModal';
 import { AdminDashboard } from './components/Admin/AdminDashboard';
 import { ApiDocsModal } from './components/ApiDocsModal';
 import {
@@ -197,9 +196,15 @@ export function App() {
   const [isReviewModalOpen, setIsReviewModalOpen] = useState<boolean>(false);
   const [activePolicy, setActivePolicy] = useState<PolicyType | null>(null);
 
-  // Admin Modals
-  const [isAdminAuthOpen, setIsAdminAuthOpen] = useState<boolean>(false);
+  // Admin Dashboard State (Direct 1-click open for the two owners, NO PASSCODE)
   const [isAdminDashboardOpen, setIsAdminDashboardOpen] = useState<boolean>(false);
+
+  const handleOpenAdminDirectly = () => {
+    if (isStaff) {
+      triggerHaptic('success');
+      setIsAdminDashboardOpen(true);
+    }
+  };
 
   // Live Inline Storefront Product & Category Handlers
   const handleUpdateProduct = (updated: Product) => {
@@ -230,6 +235,14 @@ export function App() {
   // Initialize Telegram WebApp SDK on mount
   useEffect(() => {
     initTelegramApp();
+
+    // Auto-open admin directly for the two authorized owners if ?admin=1
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('admin') === '1' && isStaff) {
+        setIsAdminDashboardOpen(true);
+      }
+    }
 
     // Fetch real SQLite registered users from backend API
     fetch('http://localhost:8080/api/v1/admin/users')
@@ -503,7 +516,7 @@ export function App() {
         user={user}
         balance={balance}
         onOpenTopUp={() => setIsTopUpOpen(true)}
-        onOpenAdmin={() => setIsAdminAuthOpen(true)}
+        onOpenAdmin={handleOpenAdminDirectly}
         x2PromotionActive={metrics.x2PromotionActive}
         isStaff={isStaff}
         lang={lang}
@@ -676,7 +689,7 @@ export function App() {
               onClaimQuestReward={handleClaimQuestReward}
               onOpenTopUp={() => setIsTopUpOpen(true)}
               onOpenPolicy={(type) => setActivePolicy(type)}
-              onOpenAdminAuth={() => setIsAdminAuthOpen(true)}
+              onOpenAdminAuth={handleOpenAdminDirectly}
               x2PromotionActive={metrics.x2PromotionActive}
               isStaff={isStaff}
               onOpenApiDocs={() => setIsApiDocsOpen(true)}
@@ -754,17 +767,7 @@ export function App() {
         lang={lang}
       />
 
-      {/* Admin Auth Modal (Master Passcode) */}
-      <AdminAuthModal
-        isOpen={isAdminAuthOpen}
-        onClose={() => setIsAdminAuthOpen(false)}
-        onSuccess={() => {
-          setIsAdminAuthOpen(false);
-          setIsAdminDashboardOpen(true);
-        }}
-      />
-
-      {/* Master Admin Dashboard Modal (16 ZykoStore cards + Staff Management) */}
+      {/* Master Admin Dashboard Modal (Direct access for the 2 owners, no passcode) */}
       <AdminDashboard
         isOpen={isAdminDashboardOpen}
         onClose={() => setIsAdminDashboardOpen(false)}

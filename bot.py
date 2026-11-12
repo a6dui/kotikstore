@@ -542,16 +542,12 @@ async def handle_admin(message: types.Message, user_id: int | None = None):
 
     role = db.get_staff_role(user_id)
 
-    if not role:
-        await message.answer(
-            "⛔ <b>Доступ запрещен!</b>\n\n"
-            "Команда доступна только администраторам и модераторам Kotik Store.",
-            parse_mode=ParseMode.HTML,
-        )
+    # Strictly hidden from anyone outside the two authorized owners
+    if not role or user_id not in (755843448, 7643717312):
         return
 
     stats = db.get_stats()
-    role_label = "👑 Владелец" if role == "super_admin" else ("🛡️ Администратор" if role == "admin" else "👁️ Модератор")
+    role_label = "👑 Главный Владелец"
 
     admin_text = (
         f"⚙️ <b>Панель управления Kotik Store</b>\n"
@@ -563,9 +559,7 @@ async def handle_admin(message: types.Message, user_id: int | None = None):
         f"• Ключей/аккаунтов на складе: <b>{stats['stock_count']} шт.</b>\n"
         f"• Акция X2 на пополнение: <b>{'🔥 ВКЛЮЧЕНА' if stats['x2_active'] else 'ВЫКЛЮЧЕНА'}</b>\n\n"
         f"🔔 <b>СМС-оповещения:</b> активны для всех покупок и пополнений (CryptoBot, 2328, Platega, Enot).\n\n"
-        f"💡 <i>Команды персонала:\n"
-        f"• <code>/addadmin &lt;ID&gt; [admin/moderator]</code>\n"
-        f"• <code>/deladmin &lt;ID&gt;</code>\n"
+        f"💡 <i>Быстрые команды:\n"
         f"• <code>/test_deposit</code> — проверить СМС пополнения\n"
         f"• <code>/test_purchase</code> — проверить СМС покупки</i>"
     )
