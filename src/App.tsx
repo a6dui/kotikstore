@@ -230,6 +230,26 @@ export function App() {
   // Initialize Telegram WebApp SDK on mount
   useEffect(() => {
     initTelegramApp();
+
+    // Fetch real SQLite registered users from backend API
+    fetch('http://localhost:8080/api/v1/admin/users')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.ok && Array.isArray(data.users) && data.users.length > 0) {
+          const mapped: AdminUser[] = data.users.map((u: any) => ({
+            id: `usr-${u.telegram_id}`,
+            telegramId: u.telegram_id,
+            name: u.first_name || (u.username ? `@${u.username}` : `User ${u.telegram_id}`),
+            username: u.username ? `@${u.username}` : `id${u.telegram_id}`,
+            balance: u.balance,
+            ordersCount: u.orders_count,
+            status: 'active',
+            registeredAt: u.created_at || new Date().toISOString().split('T')[0],
+          }));
+          setAdminUsers(mapped);
+        }
+      })
+      .catch(() => {});
   }, []);
 
   // Sync state to localStorage

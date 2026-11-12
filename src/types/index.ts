@@ -139,6 +139,7 @@ export interface StaffMember {
 
 export interface AdminUser {
   id: string;
+  telegramId?: number;
   username: string;
   name: string;
   balance: number;

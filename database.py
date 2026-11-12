@@ -800,5 +800,84 @@ def export_all_orders():
     return rows
 
 
+# --- Detailed Users Management & Manual Grants ---
+def get_all_users_detailed():
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT u.telegram_id, u.username, u.first_name, u.balance, u.orders_count, u.total_spent, u.language, u.created_at
+        FROM users u
+        ORDER BY u.created_at DESC
+    """)
+    rows = [dict(r) for r in cur.fetchall()]
+    conn.close()
+    return rows
+
+
+def admin_adjust_user_balance(telegram_id: int, delta: float, reason: str = "Admin adjustment"):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT balance FROM users WHERE telegram_id = ?", (telegram_id,))
+    row = cur.fetchone()
+    if not row:
+        conn.close()
+        return None, "Пользователь не найден"
+    new_balance = max(0.0, round(row["balance"] + delta, 2))
+    cur.execute("UPDATE users SET balance = ? WHERE telegram_id = ?", (new_balance, telegram_id))
+    conn.commit()
+    conn.close()
+    return new_balance, None
+
+
+def admin_grant_product(telegram_id: int, product_id: str, custom_credentials: str = ""):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM products WHERE id = ?", (product_id,))
+    prod = cur.fetchone()
+    if not prod:
+        conn.close()
+        return None, "Товар не найден"
+
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    expires_str = (datetime.now() + timedelta(days=30)).strftime("%Y-%m-%d")
+    order_id = f"KOTIK-{uuid.uuid4().hex[:8].upper()}"
+
+    item_content = custom_credentials.strip()
+    if not item_content:
+        # Pull from stock if available
+        cur.execute("SELECT * FROM stock_items WHERE product_id = ? AND is_sold = 0 LIMIT 1", (product_id,))
+        stock_row = cur.fetchone()
+        if stock_row:
+            item_content = stock_row["content"]
+            cur.execute("UPDATE stock_items SET is_sold = 1, sold_at = ? WHERE id = ?", (now_str, stock_row["id"]))
+        else:
+            item_content = f"Подписка {prod['title']}: Активирована администратором вручную"
+
+    cur.execute("""
+        INSERT INTO orders (id, user_id, product_id, product_title, price, item_content, status, created_at, expires_at)
+        VALUES (?, ?, ?, ?, ?, ?, 'completed', ?, ?)
+    """, (order_id, telegram_id, product_id, prod["title"], 0.0, item_content, now_str, expires_str))
+
+    cur.execute("UPDATE users SET orders_count = orders_count + 1 WHERE telegram_id = ?", (telegram_id,))
+    conn.commit()
+    conn.close()
+    return {
+        "order_id": order_id,
+        "product_title": prod["title"],
+        "credentials": item_content,
+        "expires_at": expires_str,
+    }, None
+
+
+def clear_all_orders():
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM orders")
+    cur.execute("UPDATE users SET orders_count = 0, total_spent = 0.0")
+    conn.commit()
+    conn.close()
+    return True
+
+
 # Initialize DB on module import
 init_db()

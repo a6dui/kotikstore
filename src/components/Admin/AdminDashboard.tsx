@@ -548,6 +548,69 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     );
     setSearchedUser({ ...searchedUser, balance: newBal });
     setAdjustAmount('');
+
+    // Sync to SQLite bot backend
+    const delta = type === 'add' ? amt : -amt;
+    const tgId = searchedUser.telegramId || parseInt(searchedUser.id.replace('usr-', ''));
+    if (tgId) {
+      fetch('http://localhost:8080/api/v1/admin/user/balance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          telegram_id: tgId,
+          delta: delta,
+          reason: 'Корректировка в панели управления',
+        }),
+      }).catch(() => {});
+    }
+  };
+
+  const handleGrantProduct = (targetUser: AdminUser, productId: string) => {
+    haptic.success();
+    const prod = products.find((p) => p.id === productId);
+    if (!prod) return;
+    const tgId = targetUser.telegramId || parseInt(targetUser.id.replace('usr-', ''));
+
+    if (tgId) {
+      fetch('http://localhost:8080/api/v1/admin/user/grant', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          telegram_id: tgId,
+          product_id: productId,
+          credentials: '',
+        }),
+      }).catch(() => {});
+    }
+
+    const newOrd: OrderItem = {
+      id: `KOTIK-${Math.random().toString(36).substring(2, 9).toUpperCase()}`,
+      productId: prod.id,
+      productTitle: prod.title,
+      optionName: 'Выдача администратором',
+      months: 1,
+      totalPrice: 0,
+      date: new Date().toLocaleDateString('ru-RU'),
+      expiresDate: new Date(Date.now() + 30 * 86400000).toLocaleDateString('ru-RU'),
+      status: 'active',
+      loginData: `Выдано вручную администратором: ${prod.title}`,
+      instructions: [prod.instruction || ''],
+      brandColor: '#ec4899',
+      buyerName: targetUser.name,
+      buyerUsername: targetUser.username.replace('@', ''),
+      buyerId: String(tgId || targetUser.id),
+    };
+    onUpdateOrders([newOrd, ...orders]);
+    alert(`Товар «${prod.title}» успешно выдан пользователю ${targetUser.name}!`);
+  };
+
+  const handleClearOrders = () => {
+    if (!confirm('Вы уверены, что хотите удалить ВСЕ заказы из истории и базы?')) return;
+    haptic.warning();
+    onUpdateOrders([]);
+    localStorage.removeItem('kotik_orders');
+    localStorage.removeItem('kotik_admin_orders');
+    fetch('http://localhost:8080/api/v1/admin/orders/clear', { method: 'POST' }).catch(() => {});
   };
 
   // 9. Staff Management Actions
@@ -1680,26 +1743,129 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 )}
               </div>
 
-              {/* Recent Orders List */}
-              <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/10">
-                <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-2">🛒 Последние заказы</h3>
-                <div className="space-y-1.5 max-h-48 overflow-y-auto no-scrollbar">
-                  {orders.map((o) => (
-                    <div key={o.id} className="flex items-center justify-between p-2 rounded-xl bg-black/40 border border-white/5 text-xs">
-                      <div>
-                        <span className="font-mono font-bold text-pink-300">{o.id}</span>
-                        <span className="text-white ml-2">{o.productTitle}</span>
-                        <span className="text-[10px] text-white/40 block">{o.buyerUsername ? `@${o.buyerUsername}` : 'Клиент'} • {o.date}</span>
-                      </div>
-                      <div className="text-right">
-                        <span className="font-mono font-bold text-white">${o.totalPrice}</span>
-                        <span className={`block text-[9px] font-bold ${o.status === 'refunded' ? 'text-red-400' : 'text-emerald-400'}`}>
-                          {o.status === 'refunded' ? 'ВОЗВРАТ' : 'ОПЛАЧЕН'}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
+              {/* All Registered Users List with Balance & Product Grants */}
+              <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/10 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                    <span>👥 База пользователей</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+                      {users.length} чел.
+                    </span>
+                  </h3>
                 </div>
+
+                {users.length === 0 ? (
+                  <div className="p-4 text-center text-xs text-white/40">
+                    Пользователей пока нет в базе. Как только клиент нажмет /start в боте, он сразу появится здесь!
+                  </div>
+                ) : (
+                  <div className="space-y-2 max-h-64 overflow-y-auto no-scrollbar">
+                    {users.map((u) => (
+                      <div
+                        key={u.id}
+                        className="p-3 rounded-xl bg-black/40 border border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs"
+                      >
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-white">{u.name}</span>
+                            <span className="text-cyan-400 font-mono text-[11px]">{u.username}</span>
+                          </div>
+                          <div className="text-[10px] text-white/40 mt-0.5">
+                            ID: <code className="text-white/60">{u.telegramId || u.id}</code> • Заказов: {u.ordersCount} • Рег: {u.registeredAt || '—'}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="font-mono font-bold text-emerald-400 px-2 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-xs">
+                            ${u.balance.toFixed(2)}
+                          </span>
+
+                          <button
+                            onClick={() => {
+                              const amtStr = prompt(`Введите сумму для начисления пользователю ${u.name} (например: 5 или -2):`, '5');
+                              if (amtStr) {
+                                const amt = parseFloat(amtStr);
+                                if (!isNaN(amt)) {
+                                  const newBal = Math.max(0, u.balance + amt);
+                                  onUpdateUsers(users.map((usr) => (usr.id === u.id ? { ...usr, balance: newBal } : usr)));
+                                  const tgId = u.telegramId || parseInt(u.id.replace('usr-', ''));
+                                  if (tgId) {
+                                    fetch('http://localhost:8080/api/v1/admin/user/balance', {
+                                      method: 'POST',
+                                      headers: { 'Content-Type': 'application/json' },
+                                      body: JSON.stringify({ telegram_id: tgId, delta: amt, reason: 'Начислено в Web-Админке' }),
+                                    }).catch(() => {});
+                                  }
+                                }
+                              }
+                            }}
+                            className="px-2.5 py-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 font-bold text-[11px] border border-emerald-500/30 transition"
+                            title="Выдать баланс"
+                          >
+                            💰 + Баланс
+                          </button>
+
+                          <button
+                            onClick={() => {
+                              const prodTitles = products.map((p, i) => `${i + 1}. ${p.title}`).join('\n');
+                              const choice = prompt(`Выберите товар для выдачи пользователю ${u.name}:\n\n${prodTitles}\n\nВведите номер товара (1-${products.length}):`, '1');
+                              if (choice) {
+                                const idx = parseInt(choice) - 1;
+                                if (idx >= 0 && idx < products.length) {
+                                  handleGrantProduct(u, products[idx].id);
+                                }
+                              }
+                            }}
+                            className="px-2.5 py-1.5 rounded-lg bg-fuchsia-500/20 hover:bg-fuchsia-500/30 text-fuchsia-300 font-bold text-[11px] border border-fuchsia-500/30 transition"
+                            title="Выдать товар"
+                          >
+                            🎁 Выдать товар
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Recent Orders List */}
+              <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/10 space-y-2">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-bold text-white uppercase tracking-wider">
+                    🛒 Заказы ({orders.length} шт.)
+                  </h3>
+                  {orders.length > 0 && (
+                    <button
+                      onClick={handleClearOrders}
+                      className="px-2.5 py-1 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-300 border border-red-500/30 text-[10px] font-bold transition"
+                    >
+                      🗑 Очистить все заказы
+                    </button>
+                  )}
+                </div>
+                {orders.length === 0 ? (
+                  <div className="p-4 text-center text-xs text-white/40">
+                    Заказов пока нет (список заказов очищен).
+                  </div>
+                ) : (
+                  <div className="space-y-1.5 max-h-48 overflow-y-auto no-scrollbar">
+                    {orders.map((o) => (
+                      <div key={o.id} className="flex items-center justify-between p-2 rounded-xl bg-black/40 border border-white/5 text-xs">
+                        <div>
+                          <span className="font-mono font-bold text-pink-300">{o.id}</span>
+                          <span className="text-white ml-2">{o.productTitle}</span>
+                          <span className="text-[10px] text-white/40 block">{o.buyerUsername ? `@${o.buyerUsername}` : (o.buyerName || 'Клиент')} • {o.date}</span>
+                        </div>
+                        <div className="text-right">
+                          <span className="font-mono font-bold text-white">${o.totalPrice}</span>
+                          <span className={`block text-[9px] font-bold ${o.status === 'refunded' ? 'text-red-400' : 'text-emerald-400'}`}>
+                            {o.status === 'refunded' ? 'ВОЗВРАТ' : 'ОПЛАЧЕН'}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           )}

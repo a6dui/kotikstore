@@ -303,18 +303,23 @@ def get_admin_inline_keyboard(lang: str = "ru") -> InlineKeyboardMarkup:
                 )
             ],
             [
+                InlineKeyboardButton(text="👥 Пользователи и Выдача", callback_data="admin_users_menu"),
+                InlineKeyboardButton(text="⚡ Быстрая загрузка товара", callback_data="admin_fast_stock"),
+            ],
+            [
                 InlineKeyboardButton(text="📊 Склад и остатки", callback_data="admin_stock"),
                 InlineKeyboardButton(text="👥 Список персонала", callback_data="admin_staff"),
             ],
             [
                 InlineKeyboardButton(text="⚡ Переключить X2 Бонус", callback_data="admin_toggle_x2"),
-                InlineKeyboardButton(text="🧪 Тест уведомлений", callback_data="admin_test_notify"),
+                InlineKeyboardButton(text="🗑 Очистить заказы", callback_data="admin_confirm_clear_orders"),
             ],
             [
+                InlineKeyboardButton(text="🧪 Тест уведомлений", callback_data="admin_test_notify"),
                 InlineKeyboardButton(
                     text="🔙 Вернуться в главное меню",
                     callback_data="btn_back_to_kotik",
-                )
+                ),
             ],
         ]
     )
@@ -804,6 +809,250 @@ async def handle_cabinet(message: types.Message):
 @dp.callback_query(F.data == "btn_admin_menu")
 async def handle_admin_menu_cb(callback: types.CallbackQuery):
     await callback.answer()
+    await handle_admin(callback.message)
+
+
+# --- Admin: Users Management & Manual Grants ---
+@dp.callback_query(F.data == "admin_users_menu")
+async def handle_admin_users_menu(callback: types.CallbackQuery):
+    if not db.is_staff(callback.from_user.id):
+        await callback.answer("Доступ запрещен!", show_alert=True)
+        return
+    await callback.answer()
+
+    users = db.get_all_users_detailed()
+    lines = [
+        "👥 <b>База пользователей Kotik Store</b>\n",
+        f"Всего пользователей: <b>{len(users)}</b>\n",
+        "Выберите пользователя ниже для просмотра и ручной выдачи баланса или товара:\n"
+    ]
+
+    buttons = []
+    for u in users[:10]:
+        nick = f"@{u['username']}" if u.get('username') else (u.get('first_name') or f"ID:{u['telegram_id']}")
+        buttons.append([
+            InlineKeyboardButton(
+                text=f"👤 {nick} (${u['balance']:.2f})",
+                callback_data=f"usr_card_{u['telegram_id']}"
+            )
+        ])
+
+    buttons.append([
+        InlineKeyboardButton(text="🔍 Найти по ID / Nick", callback_data="usr_search_prompt"),
+        InlineKeyboardButton(text="🔙 Назад в админку", callback_data="btn_admin_menu")
+    ])
+
+    kb = InlineKeyboardMarkup(inline_keyboard=buttons)
+    await callback.message.answer("\n".join(lines), parse_mode=ParseMode.HTML, reply_markup=kb)
+
+
+@dp.callback_query(F.data == "usr_search_prompt")
+async def handle_usr_search_prompt(callback: types.CallbackQuery):
+    admin_id = callback.from_user.id
+    if not db.is_staff(admin_id):
+        return
+    admin_session_state[admin_id] = {"action": "enter_user_search"}
+    await callback.answer()
+    kb = InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text="❌ Отмена", callback_data="cancel_admin_state")
+    ]])
+    await callback.message.answer(
+        "🔍 <b>Поиск пользователя</b>\n\n"
+        "Отправьте <b>@username</b> или <b>Telegram ID</b> пользователя для поиска:",
+        parse_mode=ParseMode.HTML,
+        reply_markup=kb,
+    )
+
+
+@dp.callback_query(F.data.startswith("usr_card_"))
+async def handle_admin_user_card(callback: types.CallbackQuery):
+    admin_id = callback.from_user.id
+    if not db.is_staff(admin_id):
+        return
+    await callback.answer()
+    uid = int(callback.data.replace("usr_card_", ""))
+    u = db.get_user(uid)
+    if not u:
+        await callback.message.answer("⚠️ Пользователь не найден в базе данных.")
+        return
+
+    nick = f"@{u['username']}" if u.get('username') else (u.get('first_name') or "—")
+    card_text = (
+        f"👤 <b>Пользователь: {nick}</b>\n\n"
+        f"• Telegram ID: <code>{u['telegram_id']}</code>\n"
+        f"• Имя: <b>{u.get('first_name') or '—'}</b>\n"
+        f"• Баланс: <b>${u['balance']:.2f}</b>\n"
+        f"• Всего заказов: <b>{u['orders_count']}</b>\n"
+        f"• Язык: <b>{u.get('language', 'ru').upper()}</b>\n"
+        f"• Дата регистрации: <b>{u.get('created_at', '—')}</b>\n\n"
+        f"<i>Выберите действие для пользователя:</i>"
+    )
+
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="💰 Выдать баланс ($)", callback_data=f"usr_add_bal_{uid}"),
+            InlineKeyboardButton(text="🎁 Выдать товар/подписку", callback_data=f"usr_grant_prod_{uid}"),
+        ],
+        [
+            InlineKeyboardButton(text="👥 К списку пользователей", callback_data="admin_users_menu"),
+            InlineKeyboardButton(text="🔙 В админку", callback_data="btn_admin_menu"),
+        ]
+    ])
+    await callback.message.answer(card_text, parse_mode=ParseMode.HTML, reply_markup=kb)
+
+
+@dp.callback_query(F.data.startswith("usr_add_bal_"))
+async def handle_usr_add_bal_cb(callback: types.CallbackQuery):
+    admin_id = callback.from_user.id
+    if not db.is_staff(admin_id):
+        return
+    uid = int(callback.data.replace("usr_add_bal_", ""))
+    admin_session_state[admin_id] = {
+        "action": "enter_balance_amount",
+        "target_uid": uid,
+    }
+    await callback.answer()
+    kb = InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text="❌ Отмена", callback_data=f"usr_card_{uid}")
+    ]])
+    await callback.message.answer(
+        f"💰 <b>Выдача баланса пользователю ID <code>{uid}</code></b>\n\n"
+        f"Введите сумму пополнения (например: <code>5</code>, <code>10.5</code> или со знаком минус для списания):",
+        parse_mode=ParseMode.HTML,
+        reply_markup=kb,
+    )
+
+
+@dp.callback_query(F.data.startswith("usr_grant_prod_"))
+async def handle_usr_grant_prod_menu(callback: types.CallbackQuery):
+    admin_id = callback.from_user.id
+    if not db.is_staff(admin_id):
+        return
+    await callback.answer()
+    uid = int(callback.data.replace("usr_grant_prod_", ""))
+    prods = db.get_products_list()
+
+    buttons = []
+    for p in prods:
+        buttons.append([
+            InlineKeyboardButton(
+                text=f"🎁 {p['title']}",
+                callback_data=f"do_grant_{p['id']}_{uid}"
+            )
+        ])
+    buttons.append([
+        InlineKeyboardButton(text="❌ Отмена", callback_data=f"usr_card_{uid}")
+    ])
+    kb = InlineKeyboardMarkup(inline_keyboard=buttons)
+    await callback.message.answer(
+        f"🎁 <b>Выберите товар для выдачи пользователю ID <code>{uid}</code>:</b>\n"
+        f"<i>(Товар будет списан со склада или выдан с отметкой администратора)</i>",
+        parse_mode=ParseMode.HTML,
+        reply_markup=kb,
+    )
+
+
+@dp.callback_query(F.data.startswith("do_grant_"))
+async def handle_do_grant_product(callback: types.CallbackQuery, bot: Bot):
+    admin_id = callback.from_user.id
+    if not db.is_staff(admin_id):
+        return
+    parts = callback.data.split("_")
+    pid = parts[2]
+    uid = int(parts[3])
+
+    res, err = db.admin_grant_product(uid, pid)
+    if err:
+        await callback.answer(f"Ошибка: {err}", show_alert=True)
+        return
+
+    await callback.answer("Товар успешно выдан!")
+    await callback.message.answer(
+        f"✅ <b>Товар успешно выдан пользователю ID <code>{uid}</code>!</b>\n\n"
+        f"• Товар: <b>{res['product_title']}</b>\n"
+        f"• Номер заказа: <code>{res['order_id']}</code>\n"
+        f"• Данные: <code>{res['credentials']}</code>\n"
+        f"• Срок: до <b>{res['expires_at']}</b>\n\n"
+        f"<i>Покупателю отправлено мгновенное уведомление в Telegram.</i>",
+        parse_mode=ParseMode.HTML,
+    )
+
+    try:
+        await bot.send_message(
+            chat_id=uid,
+            text=(
+                f"🎁 <b>Вам выдан товар от администрации Kotik Store!</b>\n\n"
+                f"Подписка: <b>{res['product_title']}</b>\n"
+                f"Номер заказа: <code>{res['order_id']}</code>\n"
+                f"Данные для входа:\n<code>{res['credentials']}</code>\n\n"
+                f"⚡ <i>Гарантия активна до: {res['expires_at']}</i> 🐾"
+            ),
+            parse_mode=ParseMode.HTML,
+        )
+    except Exception as e:
+        logger.warning(f"Could not send grant message to user {uid}: {e}")
+
+
+# --- Fast Stock Upload & Order Clearing ---
+@dp.callback_query(F.data == "admin_fast_stock")
+async def handle_admin_fast_stock(callback: types.CallbackQuery):
+    if not db.is_staff(callback.from_user.id):
+        await callback.answer("Доступ запрещен!", show_alert=True)
+        return
+    await callback.answer()
+
+    prods = db.get_products_list()
+    lines = [
+        "⚡ <b>Быстрая загрузка товара на склад</b>\n",
+        "Выберите товар ниже, чтобы загрузить для него строки или .txt файл в 1 клик:\n"
+    ]
+    buttons = []
+    for p in prods:
+        buttons.append([
+            InlineKeyboardButton(
+                text=f"⚡ Загрузить: {p['title']}",
+                callback_data=f"restock_prod_{p['id']}"
+            )
+        ])
+    buttons.append([
+        InlineKeyboardButton(text="🔙 Назад в админку", callback_data="btn_admin_menu")
+    ])
+    kb = InlineKeyboardMarkup(inline_keyboard=buttons)
+    await callback.message.answer("\n".join(lines), parse_mode=ParseMode.HTML, reply_markup=kb)
+
+
+@dp.callback_query(F.data == "admin_confirm_clear_orders")
+async def handle_admin_confirm_clear_orders(callback: types.CallbackQuery):
+    if not db.is_staff(callback.from_user.id):
+        return
+    await callback.answer()
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="⚠️ ДА, ОЧИСТИТЬ ВСЕ ЗАКАЗЫ", callback_data="admin_do_clear_orders"),
+        ],
+        [
+            InlineKeyboardButton(text="❌ Отмена", callback_data="btn_admin_menu")
+        ]
+    ])
+    await callback.message.answer(
+        "🗑 <b>Очистка истории заказов</b>\n\n"
+        "Вы уверены, что хотите удалить все заказы из базы данных?\n"
+        "<i>Это действие удалит старые заказы и сбросит счетчики.</i>",
+        parse_mode=ParseMode.HTML,
+        reply_markup=kb,
+    )
+
+
+@dp.callback_query(F.data == "admin_do_clear_orders")
+async def handle_admin_do_clear_orders(callback: types.CallbackQuery):
+    if not db.is_staff(callback.from_user.id):
+        return
+    db.clear_all_orders()
+    await callback.answer("Все заказы очищены!", show_alert=True)
+    await callback.message.answer(
+        "✅ <b>История заказов успешно очищена!</b>\nВсе заказы удалены из базы, счетчики покупок сброшены на 0.",
+        parse_mode=ParseMode.HTML,
+    )
     await handle_admin(callback.message)
 
 
@@ -1333,6 +1582,70 @@ async def handle_incoming_text(message: types.Message, bot: Bot):
             )
             return
 
+        elif action == "enter_balance_amount":
+            target_uid = state["target_uid"]
+            admin_session_state.pop(user_id, None)
+            try:
+                delta = float(message.text.strip().replace("$", "").replace(",", "."))
+                new_bal, err = db.admin_adjust_user_balance(target_uid, delta)
+                if err:
+                    await message.answer(f"❌ Ошибка: {err}")
+                    return
+                sign = "+" if delta >= 0 else ""
+                await message.answer(
+                    f"✅ <b>Баланс пользователя ID <code>{target_uid}</code> изменен!</b>\n\n"
+                    f"Сумма: <b>{sign}${delta:.2f}</b>\n"
+                    f"Новый баланс: <b>${new_bal:.2f}</b>",
+                    parse_mode=ParseMode.HTML,
+                )
+                try:
+                    await bot.send_message(
+                        chat_id=target_uid,
+                        text=(
+                            f"💰 <b>Изменение баланса в Kotik Store!</b>\n\n"
+                            f"Администратор скорректировал ваш баланс: <b>{sign}${delta:.2f}</b>!\n"
+                            f"Текущий баланс: <b>${new_bal:.2f}</b> 🐾\n\n"
+                            f"⚡ <i>Вы можете использовать баланс для покупки любых подписок!</i>"
+                        ),
+                        parse_mode=ParseMode.HTML,
+                    )
+                except Exception as e:
+                    logger.warning(f"Could not notify user {target_uid}: {e}")
+            except ValueError:
+                await message.answer("⚠️ Неверный формат. Введите число (например: 5 или 10.5).")
+            return
+
+        elif action == "enter_user_search":
+            query = message.text.strip().lstrip("@").lower()
+            admin_session_state.pop(user_id, None)
+            users = db.get_all_users_detailed()
+            matched = []
+            for u in users:
+                uid_str = str(u["telegram_id"])
+                uname = (u.get("username") or "").lower()
+                fname = (u.get("first_name") or "").lower()
+                if query in uid_str or query in uname or query in fname:
+                    matched.append(u)
+
+            if not matched:
+                await message.answer(f"⚠️ По запросу «{message.text}» ничего не найдено.")
+                return
+
+            lines = [f"🔍 <b>Результаты поиска ({len(matched)}):</b>\n"]
+            buttons = []
+            for u in matched[:8]:
+                nick = f"@{u['username']}" if u.get('username') else (u.get('first_name') or f"ID:{u['telegram_id']}")
+                buttons.append([
+                    InlineKeyboardButton(
+                        text=f"👤 {nick} (${u['balance']:.2f})",
+                        callback_data=f"usr_card_{u['telegram_id']}"
+                    )
+                ])
+            buttons.append([InlineKeyboardButton(text="👥 К списку всех", callback_data="admin_users_menu")])
+            kb = InlineKeyboardMarkup(inline_keyboard=buttons)
+            await message.answer("\n".join(lines), parse_mode=ParseMode.HTML, reply_markup=kb)
+            return
+
     # 2. Check if user is sending a support ticket
     if user_support_state.get(user_id):
         user_support_state.pop(user_id, None)
@@ -1503,6 +1816,90 @@ async def handle_api_export_orders_csv(request: web.Request):
     )
 
 
+async def handle_api_admin_users(request: web.Request):
+    """GET /api/v1/admin/users - Returns list of registered SQLite users."""
+    try:
+        users = db.get_all_users_detailed()
+        return web.json_response({"ok": True, "users": users})
+    except Exception as e:
+        return web.json_response({"ok": False, "error": str(e)}, status=400)
+
+
+async def handle_api_admin_user_balance(request: web.Request):
+    """POST /api/v1/admin/user/balance - Adjust balance and notify user."""
+    try:
+        data = await request.json()
+        telegram_id = int(data.get("telegram_id"))
+        delta = float(data.get("delta", 0.0))
+        reason = data.get("reason", "Пополнение администратором")
+        new_balance, err = db.admin_adjust_user_balance(telegram_id, delta, reason)
+        if err:
+            return web.json_response({"ok": False, "error": err}, status=400)
+
+        # Notify user in Telegram
+        if bot_instance:
+            try:
+                sign = "+" if delta >= 0 else ""
+                await bot_instance.send_message(
+                    chat_id=telegram_id,
+                    text=(
+                        f"💰 <b>Изменение баланса в Kotik Store!</b>\n\n"
+                        f"Администратор скорректировал ваш баланс: <b>{sign}${delta:.2f}</b>\n"
+                        f"Текущий баланс: <b>${new_balance:.2f}</b> 🐾\n\n"
+                        f"<i>Причина: {reason}</i>"
+                    ),
+                    parse_mode=ParseMode.HTML,
+                )
+            except Exception as notify_err:
+                logger.warning(f"Failed to notify user {telegram_id}: {notify_err}")
+
+        return web.json_response({"ok": True, "new_balance": new_balance})
+    except Exception as e:
+        return web.json_response({"ok": False, "error": str(e)}, status=400)
+
+
+async def handle_api_admin_user_grant(request: web.Request):
+    """POST /api/v1/admin/user/grant - Grant product to user."""
+    try:
+        data = await request.json()
+        telegram_id = int(data.get("telegram_id"))
+        product_id = data.get("product_id")
+        credentials = data.get("credentials", "")
+        res, err = db.admin_grant_product(telegram_id, product_id, credentials)
+        if err:
+            return web.json_response({"ok": False, "error": err}, status=400)
+
+        # Notify user in Telegram
+        if bot_instance:
+            try:
+                await bot_instance.send_message(
+                    chat_id=telegram_id,
+                    text=(
+                        f"🎁 <b>Вам выдан товар в Kotik Store!</b>\n\n"
+                        f"Товар: <b>{res['product_title']}</b>\n"
+                        f"Номер заказа: <code>{res['order_id']}</code>\n"
+                        f"Данные для доступа:\n<code>{res['credentials']}</code>\n\n"
+                        f"⚡ <i>Подписка активна до: {res['expires_at']}</i>"
+                    ),
+                    parse_mode=ParseMode.HTML,
+                )
+            except Exception as notify_err:
+                logger.warning(f"Failed to notify user {telegram_id}: {notify_err}")
+
+        return web.json_response({"ok": True, "order": res})
+    except Exception as e:
+        return web.json_response({"ok": False, "error": str(e)}, status=400)
+
+
+async def handle_api_admin_orders_clear(request: web.Request):
+    """POST /api/v1/admin/orders/clear - Wipes all orders in database."""
+    try:
+        db.clear_all_orders()
+        return web.json_response({"ok": True, "message": "All orders cleared"})
+    except Exception as e:
+        return web.json_response({"ok": False, "error": str(e)}, status=400)
+
+
 # --- Background Subscription Expiration Reminder Worker ---
 async def subscription_reminder_worker(bot: Bot):
     """Periodically checks expiring subscriptions and notifies customers."""
@@ -1560,6 +1957,12 @@ async def start_web_server():
     app.router.add_get("/api/v1/quests", handle_api_quests_list)
     app.router.add_post("/api/v1/quests/claim", handle_api_quests_claim)
     app.router.add_get("/api/v1/export/orders.csv", handle_api_export_orders_csv)
+
+    # Admin Users & Management API
+    app.router.add_get("/api/v1/admin/users", handle_api_admin_users)
+    app.router.add_post("/api/v1/admin/user/balance", handle_api_admin_user_balance)
+    app.router.add_post("/api/v1/admin/user/grant", handle_api_admin_user_grant)
+    app.router.add_post("/api/v1/admin/orders/clear", handle_api_admin_orders_clear)
 
     runner = web.AppRunner(app)
     await runner.setup()
